@@ -41,6 +41,7 @@ function storefront_primary_navigation()
 	</nav><!-- #site-navigation -->
 <?php
 }
+
 add_filter('woocommerce_new_customer_data', function ($data) {
 	$data['user_login'] = $data['user_email'];
 	return $data;
@@ -233,3 +234,22 @@ function default_start_month($value, $post_id, $field)
 
 add_filter('acf/load_value/name=start_month', 'default_start_month', 10, 3);
 // add_filter('acf/load_value/name=sow_months', 'default_sow_months', 10, 3);
+
+
+//turn off product pagination
+add_filter('theme_mod_storefront_product_pagination', '__return_false');
+
+
+add_filter('woocommerce_variation_is_visible', 'hide_specific_product_variation', 10, 4);
+function hide_specific_product_variation($is_visible, $variation_id, $variable_product, $variation)
+{
+	// For unlogged user, don't hide anything
+	if (!is_user_logged_in()) {
+		return $is_visible;
+	}
+
+	if (current_user_can('wholesale_retail') && $variation->attributes['pa_size'] == 'large') {
+		return false;
+	}
+	return $is_visible;
+}
