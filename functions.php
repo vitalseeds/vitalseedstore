@@ -70,51 +70,6 @@ function wpo_wcpdf_custom_styles($document_type, $document)
 <?php
 }
 
-function best_selling_vs_products_shortcode($atts)
-{
-
-	$num_products_to_show = 4;
-	$show_heading = true;
-
-	// Extract shortcode attributes
-	$atts = shortcode_atts(
-		array(
-			'category' => 'uncategorized',
-			'limit' => $num_products_to_show,
-			'columns' => 4,
-		),
-		$atts,
-		'best_selling_products'
-	);
-
-	try {
-		$atts = array_merge(
-			array(
-				'limit'        => $atts['limit'],
-				'columns'      => $atts['columns'],
-				'category'     => $atts['category'],
-				'cat_operator' => 'IN',
-			),
-			(array) $atts
-		);
-
-		$shortcode = new WC_Shortcode_Products($atts, 'best_selling_products');
-		$output	= '';
-		if ($show_heading) {
-			$output .= '<h2>Most popular ' . ucwords(str_replace('-', ' ', $atts['category'])) . '</h2>';
-		}
-
-		$output .= $shortcode->get_content();
-	} catch (exception $e) {
-		$output = $e;
-	}
-
-	return $output;
-}
-
-add_shortcode('best_selling_vs_products', 'best_selling_vs_products_shortcode');
-
-
 // ACF helper functions
 
 function acf_enabled()
@@ -139,48 +94,6 @@ if (acf_enabled()) {
 
 // Add the ACF field group for the sowing calendar
 // require_once('includes/acf/fields/acf-seed-calendar.php');
-
-// TODO: replace constant with a WC option
-define('VS_LARGE_PACKET__NO_STOCK_AMOUNT', 5);
-
-function product_is_large_packet($product)
-{
-	return $product->get_type() == 'variation' && $product->get_attributes()["pa_size"] == "large";
-}
-
-function get_large_pack_is_in_stock($status, $product)
-{
-	if (
-		product_is_large_packet($product) &&
-		$product->get_stock_quantity() > VS_LARGE_PACKET__NO_STOCK_AMOUNT
-	) {
-		return true;
-	}
-	return $status;
-}
-add_filter('woocommerce_product_is_in_stock', 'get_large_pack_is_in_stock', 10, 2);
-
-function large_packet_no_stock_notification($default, $product_id)
-{
-	// If the product is a large packet then it should not send out of stock
-	// notifications until it reaches the separate large packet threshold.
-
-	$product = wc_get_product($product_id);
-	if (!product_is_large_packet($product)) {
-		return $default;
-	}
-
-	// The wc option that controls the regular threshold for sending out of stock notifications
-	// get_option('woocommerce_notify_no_stock_amount', 0)
-
-	$stock_quantity = $product->stock_quantity;
-	$stock_status = $product->stock_status; // 'instock' or 'outofstock'
-	if ($stock_status == 'outofstock' && $stock_quantity > VS_LARGE_PACKET__NO_STOCK_AMOUNT) {
-		return false;
-	}
-	return $default;
-}
-add_filter('woocommerce_should_send_no_stock_notification', 'large_packet_no_stock_notification', 10, 2);
 
 /**
  * Returns a row of cells for a calendar table.
