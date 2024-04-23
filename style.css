@@ -1,0 +1,215 @@
+/*
+ Theme Name:   Vital Seedstore
+ Theme URI:    http://vitalseeds.co.uk
+ Description:  A child theme for Storefront.
+ Author:       Tom Readings
+ Author URI:   https//github.com/vitalseeds
+ Template:     storefront
+ Version:      1.0.0
+ Text Domain:  vitalseeds
+*/
+
+body {
+	font-family: Sans-serif;
+	/* background-color: black; */
+}
+
+.woocommerce-active .site-header .site-header-cart {
+	width: 15%;
+}
+.woocommerce-active .site-header .main-navigation {
+	width: 80%;
+	margin-right: 2%
+}
+.home.page:not(.page-template-template-homepage) .site-header, .home.post-type-archive-product .site-header {
+    margin-bottom: 0;
+}
+
+footer .widget .widget-title, .widget .widgettitle {
+    font-size: 1em;
+    font-weight: 500;
+	font-family: Sans-serif;
+		text-align:center;
+		font-size: 25px;
+		text-shadow: 0px 0px 10px #000000;
+}
+.widget .widget-title, .widget .widgettitle {
+    color: #668e32;
+}
+.site-footer a:not(.button) {
+    color: #668e32;
+    font-size: 15px;
+    text-shadow: none;
+}
+#recent-posts-3 a {
+	  color: #e6ded0;
+    font-size: 20px;
+
+}
+#nav_menu-2 a {
+	  color: #e6ded0;
+    font-size: 20px;
+}
+#facebook-likebox-2 a {
+    font-size: 1em;
+    font-weight: 500;
+		color: #e6ded0;
+		font-size: 25px;
+		text-shadow: 0px 0px 10px #000000;
+}
+#facebook-likebox-2 {
+	margin-bottom: 1em;
+	padding-bottom: 1em;
+	border-bottom: 1px solid rgba(0,0,0,.05);
+}
+.jetpack-social-widget-list {
+	text-align:center;
+}
+.widget {
+    margin: 0;
+}
+.col-full {
+	max-width: 1200px;
+}
+.site-footer {
+  background-color: #54595f;
+	color: #e6ded0;
+	font-family: "Lato", Sans-serif;
+
+}
+
+.footer-img {
+	margin:auto;
+}
+.footer-widgets {
+    padding-top: 0;
+}
+#mc_subheader {
+    line-height: 1.25em;
+    margin-bottom: 18px;
+}
+button, input[type="button"], input[type="reset"], input[type="submit"], .button, .added_to_cart, .widget a.button, .site-header-cart .widget_shopping_cart a.button {
+    background-color: #d86b01;
+    border-color: #d5d5d5;
+    color: #fff;
+}
+button:hover, input[type="button"]:hover, input[type="reset"]:hover, input[type="submit"]:hover, .button:hover, .added_to_cart:hover, .widget a.button:hover, .site-header-cart .widget_shopping_cart a.button:hover {
+    background-color: #e87b11;
+    border-color: #e5e5e5;
+    color: #fff;
+}
+
+
+
+.widget .widget-title, .widget .widgettitle {
+	color: #668e32;
+  font-weight: 400;
+}
+a {
+    color: #668e32;
+}
+footer .widget .widget-title, .widget .widgettitle {
+	color: #e6ded0;
+    font-size: 1em;
+    font-weight: 500;
+		text-align:center;
+		font-family: "Lato", Sans-serif;
+		font-size: 25px;
+		text-shadow: 0px 0px 10px #000000;
+	  padding: 0 0 0.5em;
+    margin-bottom: 0.5em;
+}
+.widget_nav_menu ul li::before {
+    content: "";
+}
+.widget_recent_entries ul li::before, .widget_pages ul li::before {
+    content: "";
+}
+
+.woocommerce-error, .woocommerce-info, .woocommerce-message, .woocommerce-noreviews, p.no-comments {
+    background-color: #d86b01;
+}
+.footer-social-icons {
+	text-align:center;
+	max-width: 200px;
+	width: 100%;
+	display: block;
+	margin: auto;
+	padding: 0;
+	list-style: none;
+}
+.footer-social-icon {
+	width: 40%;
+	border: 0;
+	display: inline-block;
+	margin: 3%;
+	padding: 0;
+	list-style: none;
+}
+.VS_sm-icon {
+	max-width: 80px;
+	width: 100%;
+	margin:auto;
+}
+
+.storefront-breadcrumb {
+	margin: 0
+}
+
+/* Sowing calendar */
+/* * { outline: 1px solid red; } */
+
+.vs-calendar.summary {
+	min-width: fit-content;
+}
+
+.sowing-calendar, .sowing-calendar * {
+	all: revert;
+	text-align: left;
+	color: grey;
+}
+.sowing-calendar {
+	border: solid 1px #DDEEEE;
+    border-collapse: collapse;
+    border-spacing: 0;
+    font: normal 13px Arial, sans-serif;
+}
+.sowing-calendar thead th {
+	background-color: #DDEFEF;
+    border: solid 1px #DDEEEE;
+    color: #336B6B;
+    padding: 10px;
+    text-align: left;
+    /* text-shadow: 1px 1px 1px #fff; */
+}
+.sowing-calendar tbody td {
+	border: solid 1px #DDEEEE;
+    color: #333;
+    padding: 10px;
+}
+.sowing-calendar td.highlight {
+	border-left-color: rgba(0,0,0,.05);
+	border-right-color: rgba(0,0,0,.1);
+}
+.sowing-calendar td.highlight:hover {
+	filter: brightness(110%);
+}
+.sowing-calendar td.highlight-sow {
+	background: rgb(253, 238, 28);
+}
+.sowing-calendar td.highlight-transplant {
+	background: rgb(118, 200, 51);
+}
+.sowing-calendar td.highlight-harvest {
+	background: rgb(216, 107, 1);
+}
+@media (max-width:568px) {
+	.sowing-calendar thead th:not(.calendar-label), .sowing-calendar tbody td:not(.calendar-label) {
+		padding: 0;
+		width: 60px;
+		text-align: center;
+	}
+
+}
+
+/* Sowing calendar end */
