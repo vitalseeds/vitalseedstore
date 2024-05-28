@@ -14,6 +14,11 @@ body {
 	/* background-color: black; */
 }
 
+.site-header {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
 .woocommerce-active .site-header .site-header-cart {
 	width: 15%;
 }
