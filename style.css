@@ -163,3 +163,18 @@ footer .widget .widget-title, .widget .widgettitle {
 .vs-calendar {
 	margin-bottom: 2em;
 }
+
+h2:target {
+	/* background-color: #ffa; */
+	/* font-weight: 700; */
+	animation: highlight-heading 4s ease 0s 1 normal forwards;
+}
+
+@keyframes highlight-heading {
+	0% {
+		background-color: #ffa;
+	}
+	100% {
+		background-color: transparent;
+	}
+}
