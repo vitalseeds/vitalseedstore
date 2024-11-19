@@ -178,3 +178,42 @@ h2:target {
 		background-color: transparent;
 	}
 }
+
+/* GROWING GUIDE */
+
+/* flickity on by default */
+.fl-carousel {
+	margin-bottom: 3rem;
+}
+.fl-carousel:after {
+	content: 'flickity';
+	display: none;
+  }
+@media screen and ( min-width: 768px ) {
+	/* disable Flickity for large devices */
+	.fl-carousel:after {
+	  content: '';
+	}
+	.fl-carousel {
+		display: flex;
+		/* flex-wrap: wrap;
+		margin-right: -20px; */
+	}
+	.fl-carousel-cell {
+		flex: 0 0 calc(25% - 20px);
+		margin-right: 20px;
+	}
+	.fl-carousel-cell:last-child {
+		margin-right: 0;
+	}
+  }
+
+/* no margin bottom when Flickity enabled  */
+.flickity-enabled.fl-carousel {
+	margin-bottom: 3rem;
+}
+
+.growing-guide h2 {
+	font-size: 2rem;
+	margin-top: 2rem;
+}
