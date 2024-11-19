@@ -93,23 +93,33 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 
 // Growing Guide
 
-function category_growing_guide($term_id = null)
-{
-	$cat = get_queried_object();
-	if ($cat) {
-		// get acf field from category
-		$growing_guide = get_field('growing_guide', 'product_cat_' . $cat->term_id);
-		if ($growing_guide) {
-			echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
-			$args = array('growing_guide_id' => $growing_guide[0]->ID);
-			get_template_part('parts/growersguide', 'sections', $args);
 
-			// }
+if (acf_enabled()) {
+	// Add the ACF field group for the Growers Guide
+	require_once('includes/acf/fields/acf-growing-guide.php');
+	function category_growing_guide($term_id = null)
+	{
+		$cat = get_queried_object();
+		if ($cat) {
+			// get acf field from category
+			$growing_guide = get_field('growing_guide', 'product_cat_' . $cat->term_id);
+			if ($growing_guide) {
+				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
+				$args = array('growing_guide_id' => $growing_guide[0]->ID);
+				get_template_part('parts/growersguide', 'sections', $args);
+			}
 		}
+		// $growers_guide = get_field_value_from_category($value, $post_id, 'growers_guide');
 	}
-	// $growers_guide = get_field_value_from_category($value, $post_id, 'growers_guide');
-}
 
-add_action('woocommerce_before_shop_loop', 'category_growing_guide', 3);
-// add_action('woocommerce_archive_description', 'category_growing_guide', 3);
-// add_action('woocommerce_before_main_content', 'category_growing_guide', 3);
+	add_action('woocommerce_before_shop_loop', 'category_growing_guide', 3);
+} else {
+	function vital_growersguide_admin_notice()
+	{
+		echo // Customize the message below as needed
+		'<div class="notice notice-warning is-dismissible">
+		<p>Vital Growers Guide will not display unless Advanced Custom Fields plugin is installed.</p>
+		</div>';
+	}
+	add_action('admin_notices', 'vital_growersguide_admin_notice');
+}
