@@ -16,14 +16,7 @@ add_action('acf/include_fields', function () {
                 'type' => 'post_object',
                 'instructions' => '',
                 'required' => 0,
-                'conditional_logic' => array(
-                    array(
-                        array(
-                            'operator' => '',
-                            'value' => '',
-                        ),
-                    ),
-                ),
+                'conditional_logic' => 0,
                 'wrapper' => array(
                     'width' => '',
                     'class' => '',
@@ -35,7 +28,7 @@ add_action('acf/include_fields', function () {
                 'post_status' => '',
                 'taxonomy' => '',
                 'return_format' => 'object',
-                'multiple' => 0,
+                'multiple' => 1,
                 'allow_null' => 0,
                 'bidirectional' => 0,
                 'ui' => 1,
@@ -53,7 +46,7 @@ add_action('acf/include_fields', function () {
         ),
         'menu_order' => 0,
         'position' => 'acf_after_title',
-        'style' => 'seamless',
+        'style' => 'default',
         'label_placement' => 'top',
         'instruction_placement' => 'label',
         'hide_on_screen' => '',

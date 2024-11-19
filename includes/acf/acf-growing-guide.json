@@ -11,14 +11,7 @@
                 "type": "post_object",
                 "instructions": "",
                 "required": 0,
-                "conditional_logic": [
-                    [
-                        {
-                            "operator": "",
-                            "value": ""
-                        }
-                    ]
-                ],
+                "conditional_logic": 0,
                 "wrapper": {
                     "width": "",
                     "class": "",
@@ -30,7 +23,7 @@
                 "post_status": "",
                 "taxonomy": "",
                 "return_format": "object",
-                "multiple": 0,
+                "multiple": 1,
                 "allow_null": 0,
                 "bidirectional": 0,
                 "ui": 1,
@@ -48,7 +41,7 @@
         ],
         "menu_order": 0,
         "position": "acf_after_title",
-        "style": "seamless",
+        "style": "default",
         "label_placement": "top",
         "instruction_placement": "label",
         "hide_on_screen": "",
