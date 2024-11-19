@@ -88,3 +88,14 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 	}
 	return $is_visible;
 }
+
+// Growing Guide
+
+function category_growing_guide($term_id = null)
+{
+	// $growing_guide = get_field('growing_guide', 'product_cat_' . $term_id);
+	$growing_guide = get_field('growing_guide');
+	echo "<h2>Growing guide</h2>";
+}
+
+add_action('woocommerce_archive_description', 'category_growing_guide', 3);
