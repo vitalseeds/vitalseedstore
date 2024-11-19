@@ -25,15 +25,20 @@ get_header(); ?>
             remove_action('storefront_single_post_bottom', 'storefront_post_taxonomy', 5);
             get_template_part('content', 'single');
 
-            // if ($hero = get_field('hero')) {
-            //     echo '<div class="hero-image-row">';
-            //     foreach ($hero as $hero_image) {
-            //         if ($hero_image) {
-            //             echo get_image_tag($hero_image['id'], $hero_image['alt'], $hero_image['title'], 'left', 'large');
-            //         }
-            //     }
-            //     echo '</div>';
-            // }
+            if ($hero = get_field('hero')) {
+                echo '<div class="hero-image-row">';
+                foreach ($hero as $hero_image) {
+                    if ($hero_image) {
+                        $img_src = wp_get_attachment_image_url($hero_image['id'], 'medium');
+                        $img_srcset = wp_get_attachment_image_srcset($hero_image['id'], 'medium'); ?>
+                        <img src="<?php echo esc_url($img_src); ?>" srcset="<?php echo esc_attr($img_srcset); ?>" sizes="(max-width: 768px) 90vw, 20vw">
+
+
+        <?php // echo get_image_tag($hero_image['id'], $hero_image['alt'], $hero_image['title'], 'left', 'large');
+                    }
+                }
+                echo '</div>';
+            }
 
 
             if ($seed_sowing = get_field('seed_sowing')) {
