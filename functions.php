@@ -17,6 +17,8 @@ function my_theme_enqueue_styles()
 }
 add_action('wp_enqueue_scripts', 'my_theme_enqueue_styles');
 
+
+
 remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
 
 function storefront_primary_navigation()
@@ -93,9 +95,21 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 
 function category_growing_guide($term_id = null)
 {
-	// $growing_guide = get_field('growing_guide', 'product_cat_' . $term_id);
-	$growing_guide = get_field('growing_guide');
-	echo "<h2>Growing guide</h2>";
+	$cat = get_queried_object();
+	if ($cat) {
+		// get acf field from category
+		$growing_guide = get_field('growing_guide', 'product_cat_' . $cat->term_id);
+		if ($growing_guide) {
+			echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
+			$args = array('growing_guide_id' => $growing_guide[0]->ID);
+			get_template_part('parts/growersguide', 'sections', $args);
+
+			// }
+		}
+	}
+	// $growers_guide = get_field_value_from_category($value, $post_id, 'growers_guide');
 }
 
-add_action('woocommerce_archive_description', 'category_growing_guide', 3);
+add_action('woocommerce_before_shop_loop', 'category_growing_guide', 3);
+// add_action('woocommerce_archive_description', 'category_growing_guide', 3);
+// add_action('woocommerce_before_main_content', 'category_growing_guide', 3);
