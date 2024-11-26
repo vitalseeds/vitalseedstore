@@ -35,6 +35,36 @@ get_header(); ?>
             endwhile; // End of the loop.
             ?>
         </article>
+
+        <?php
+
+        $category = function_exists('get_field') ? get_field('product_category') : null;
+
+        if ($category && $category instanceof WP_Term) {
+            $category_id = $category->term_id;
+            $args = array(
+                'post_type' => 'product',
+                'posts_per_page' => -1,
+                'tax_query' => array(
+                    array(
+                        'taxonomy' => 'product_cat',
+                        'field'    => 'term_id',
+                        'terms'    => $category_id,
+                    ),
+                ),
+            );
+            $products = new WP_Query($args);
+            if ($products->have_posts()) {
+                woocommerce_product_loop_start();
+                while ($products->have_posts()) {
+                    $products->the_post();
+                    wc_get_template_part('content', 'product');
+                }
+                woocommerce_product_loop_end();
+                wp_reset_postdata();
+            }
+        }
+        ?>
     </main><!-- #main -->
 </div><!-- #primary -->
 
