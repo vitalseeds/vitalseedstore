@@ -112,19 +112,19 @@ if (acf_enabled()) {
 			if ($growing_guide) {
 				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
 				$args = array('growing_guide_id' => $growing_guide[0]->ID);
-				get_template_part('parts/growersguide', 'sections', $args);
+				get_template_part('parts/growingguide', 'sections', $args);
 			}
 		}
 	}
 	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
 	add_action('woocommerce_after_main_content', 'category_growing_guide', 3);
 } else {
-	function vital_growersguide_admin_notice()
+	function vital_growingguide_admin_notice()
 	{
 		echo // Customize the message below as needed
 		'<div class="notice notice-warning is-dismissible">
 		<p>Vital Growers Guide will not display unless Advanced Custom Fields plugin is installed.</p>
 		</div>';
 	}
-	add_action('admin_notices', 'vital_growersguide_admin_notice');
+	add_action('admin_notices', 'vital_growingguide_admin_notice');
 }

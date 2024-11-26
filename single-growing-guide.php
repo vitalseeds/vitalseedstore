@@ -28,7 +28,7 @@ get_header(); ?>
                 // get_template_part('content', 'single');
                 the_title('<h1 class="entry-title">', '</h1>');
 
-                get_template_part('parts/growersguide', 'sections');
+                get_template_part('parts/growingguide', 'sections');
                 // echo "<code>storefront_single_post_after</code><br/>";
                 do_action('storefront_single_post_after');
 
