@@ -41,6 +41,7 @@ get_header(); ?>
         $category = function_exists('get_field') ? get_field('product_category') : null;
 
         if ($category && $category instanceof WP_Term) {
+            echo "<h2>" . $category->name . "</h2>";
             $category_id = $category->term_id;
             $args = array(
                 'post_type' => 'product',
