@@ -93,8 +93,8 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 
 // Growing Guide
 
-
-if (acf_enabled()) {
+// If ACF enabled
+if (function_exists('get_field')) {
 	// Add the ACF field group for the Growers Guide
 	require_once('includes/acf/fields/acf-growing-guide.php');
 	function category_growing_guide($term_id = null)
