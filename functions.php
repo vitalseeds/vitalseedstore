@@ -99,20 +99,25 @@ if (acf_enabled()) {
 	require_once('includes/acf/fields/acf-growing-guide.php');
 	function category_growing_guide($term_id = null)
 	{
-		$cat = get_queried_object();
-		if ($cat) {
+		$category = null;
+		if (is_product_category()) {
+			$category = get_queried_object();
+		} elseif (is_product()) {
+			$terms = get_the_terms(get_the_ID(), 'product_cat');
+			$category = !empty($terms) ? $terms[0] : null;
+		}
+		if ($category) {
 			// get acf field from category
-			$growing_guide = get_field('growing_guide', 'product_cat_' . $cat->term_id);
+			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
 				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
 				$args = array('growing_guide_id' => $growing_guide[0]->ID);
 				get_template_part('parts/growersguide', 'sections', $args);
 			}
 		}
-		// $growers_guide = get_field_value_from_category($value, $post_id, 'growers_guide');
 	}
-
-	add_action('woocommerce_before_shop_loop', 'category_growing_guide', 3);
+	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
+	add_action('woocommerce_after_main_content', 'category_growing_guide', 3);
 } else {
 	function vital_growersguide_admin_notice()
 	{
