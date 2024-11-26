@@ -117,7 +117,7 @@ if (function_exists('get_field')) {
 		}
 	}
 	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
-	add_action('woocommerce_after_main_content', 'category_growing_guide', 3);
+	add_action('woocommerce_after_single_product_summary', 'category_growing_guide', 3);
 } else {
 	function vital_growingguide_admin_notice()
 	{
