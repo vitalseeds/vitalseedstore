@@ -17,8 +17,6 @@ function my_theme_enqueue_styles()
 }
 add_action('wp_enqueue_scripts', 'my_theme_enqueue_styles');
 
-
-
 remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
 
 function storefront_primary_navigation()
@@ -100,24 +98,33 @@ if (function_exists('get_field')) {
 	function category_growing_guide($term_id = null)
 	{
 		$category = null;
+		$show_images = true;
 		if (is_product_category()) {
 			$category = get_queried_object();
 		} elseif (is_product()) {
 			$terms = get_the_terms(get_the_ID(), 'product_cat');
-			$category = !empty($terms) ? $terms[0] : null;
+			// Only use a 'seed' category, eg not 'large packet'
+			$parent_category = get_term_by('slug', 'seeds', 'product_cat');
+			foreach ($terms as $term) {
+				if (term_is_ancestor_of($parent_category, $term, 'product_cat')) {
+					$category = $term;
+					break;
+				}
+			}
+			$show_images = false;
 		}
 		if ($category) {
 			// get acf field from category
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
 				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
-				$args = array('growing_guide_id' => $growing_guide[0]->ID);
+				$args = array('growing_guide_id' => $growing_guide[0]->ID, 'show_images' => $show_images);
 				get_template_part('parts/growingguide', 'sections', $args);
 			}
 		}
 	}
 	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
-	add_action('woocommerce_after_single_product_summary', 'category_growing_guide', 3);
+	// add_action('woocommerce_after_single_product_summary', 'category_growing_guide', 3);
 } else {
 	function vital_growingguide_admin_notice()
 	{
@@ -128,3 +135,77 @@ if (function_exists('get_field')) {
 	}
 	add_action('admin_notices', 'vital_growingguide_admin_notice');
 }
+
+/**
+ * Adds Growing Information product tab to the WooCommerce product pages.
+ *
+ * @param array $tabs An array of existing WooCommerce product tabs.
+ * @return array Modified array of WooCommerce product tabs with the custom tab added.
+ */
+function vital_custom_product_tab($tabs)
+{
+	$tabs['vital_tab'] = array(
+		'title'    => __('Growing Information', 'vital-sowing-calendar'),
+		'priority' => 1,
+		'callback' => 'vital_custom_product_tab_content'
+	);
+	return $tabs;
+}
+add_filter('woocommerce_product_tabs', 'vital_custom_product_tab');
+
+function vital_custom_product_tab_content()
+{
+	// echo '<h2>' . __('When to sow, plant and harvest', 'vital-sowing-calendar') . '</h2>';
+	// echo '<p>' . __('This is the custom tab content.', 'vital-sowing-calendar') . '</p>';
+	if (function_exists('vs_sowing_calendar')) {
+		vs_sowing_calendar();
+	}
+	$growing_guide = category_growing_guide();
+}
+
+/**
+ * Filters the main term used in WooCommerce breadcrumbs.
+ *
+ * This function modifies the main term used in WooCommerce breadcrumbs to ensure
+ * that the 'seeds' category is considered as the main term if it is an ancestor
+ * of any of the terms in the breadcrumb trail.
+ *
+ * @param WP_Term $main_term The main term used in the breadcrumb.
+ * @param array $terms An array of terms in the breadcrumb trail.
+ * @return WP_Term The modified main term.
+ */
+function vital_breadcrumb_main_term($main_term, $terms)
+{
+	$parent_category = get_term_by('slug', 'seeds', 'product_cat');
+	$terms = array_reverse($terms);
+	foreach ($terms as $term) {
+		if (term_is_ancestor_of($parent_category, $term, 'product_cat')) {
+			return $term;
+		}
+	}
+	return $main_term;
+}
+add_filter('woocommerce_breadcrumb_main_term', 'vital_breadcrumb_main_term', 10, 2);
+
+/**
+ * Filters the WooCommerce breadcrumb trail to remove the 'Seeds' category.
+ *
+ * This function removes any breadcrumb entries that contain the 'Seeds' category
+ * from the WooCommerce breadcrumb trail.
+ *
+ * @param array $crumbs The breadcrumb trail.
+ * @param WC_Breadcrumb $breadcrumb The WooCommerce breadcrumb object.
+ * @return array The modified breadcrumb trail.
+ */
+function vital_remove_seeds_from_breadcrumbs($crumbs, $breadcrumb)
+{
+	foreach ($crumbs as $key => $crumb) {
+		if (in_array('Seeds', $crumb)) {
+			unset($crumbs[$key]);
+		}
+	}
+	// Reindex the array to ensure proper rendering
+	$crumbs = array_values($crumbs);
+	return $crumbs;
+}
+add_filter('woocommerce_get_breadcrumb', 'vital_remove_seeds_from_breadcrumbs', 10, 2);
