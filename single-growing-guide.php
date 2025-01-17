@@ -56,6 +56,7 @@ get_header(); ?>
             );
             $products = new WP_Query($args);
             if ($products->have_posts()) {
+                wc_set_loop_prop('columns', 4);
                 woocommerce_product_loop_start();
                 while ($products->have_posts()) {
                     $products->the_post();
