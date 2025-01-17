@@ -217,3 +217,26 @@ h2:target {
 	font-size: 2rem;
 	margin-top: 2rem;
 }
+
+/* Growing guide */
+/* Styling the Disclosure Widgets */
+
+details.growingguide {
+	margin-bottom: 1rem;
+}
+
+details.growingguide > summary {
+	background-color: rgb(230, 230, 230);
+	cursor: pointer;
+	padding: .5rem 1rem;
+}
+
+details.growingguide > summary > * {
+	display: inline;
+}
+
+details.growingguide > div {
+	border: 2px solid rgb(230, 230, 230);
+	margin-top: 0;
+	padding: 1rem;
+}

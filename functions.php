@@ -128,13 +128,16 @@ if (function_exists('get_field')) {
 			// get acf field from category
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
-				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
+				echo "<details class='growingguide'>";
+				echo "<summary>" . $growing_guide[0]->post_title . "</summary><div>	";
 				$args = array('growing_guide_id' => $growing_guide[0]->ID, 'show_images' => $show_images);
 				get_template_part('parts/growingguide', 'sections', $args);
+				echo "</div></details>";
 			}
 		}
 	}
 	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
+
 	// add_action('woocommerce_after_single_product_summary', 'category_growing_guide', 3);
 } else {
 	function vital_growingguide_admin_notice()
