@@ -229,6 +229,7 @@ details.growingguide > summary {
 	background-color: rgb(230, 230, 230);
 	cursor: pointer;
 	padding: .5rem 1rem;
+	display: list-item;
 }
 
 /* details.growingguide > summary > * {
