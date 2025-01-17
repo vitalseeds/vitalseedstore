@@ -93,6 +93,17 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 
 // If ACF enabled
 if (function_exists('get_field')) {
+
+	if (function_exists('vs_sowing_calendar')) {
+		add_action('woocommerce_archive_description', function () {
+			if (is_product_category()) {
+				$term = get_queried_object();
+				echo "<h4>Growing calendar</h4>";
+				vs_sowing_calendar("term_$term->term_id");
+			}
+		}, 3);
+	}
+
 	// Add the ACF field group for the Growers Guide
 	require_once('includes/acf/fields/acf-growing-guide.php');
 	function category_growing_guide($term_id = null)
