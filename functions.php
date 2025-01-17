@@ -151,7 +151,7 @@ if (function_exists('get_field')) {
 }
 
 /**
- * Adds Growing Information product tab to the WooCommerce product pages.
+ * (Unused) Adds Growing Information product tab to the WooCommerce product pages.
  *
  * @param array $tabs An array of existing WooCommerce product tabs.
  * @return array Modified array of WooCommerce product tabs with the custom tab added.
@@ -161,16 +161,17 @@ function vital_custom_product_tab($tabs)
 	$tabs['vital_tab'] = array(
 		'title'    => __('Growing Information', 'vital-sowing-calendar'),
 		'priority' => 1,
-		'callback' => 'vital_custom_product_tab_content'
+		'callback' => 'vital_custom_product_content'
 	);
+	return [];
 	return $tabs;
 }
-add_filter('woocommerce_product_tabs', 'vital_custom_product_tab');
+// add_filter('woocommerce_product_tabs', 'vital_custom_product_tab');
+add_filter('woocommerce_product_tabs', '__return_empty_array');
 
-function vital_custom_product_tab_content()
+add_action('woocommerce_after_main_content', 'vital_custom_product_content');
+function vital_custom_product_content()
 {
-	// echo '<h2>' . __('When to sow, plant and harvest', 'vital-sowing-calendar') . '</h2>';
-	// echo '<p>' . __('This is the custom tab content.', 'vital-sowing-calendar') . '</p>';
 	if (function_exists('vs_sowing_calendar')) {
 		vs_sowing_calendar();
 	}
