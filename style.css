@@ -231,9 +231,9 @@ details.growingguide > summary {
 	padding: .5rem 1rem;
 }
 
-details.growingguide > summary > * {
+/* details.growingguide > summary > * {
 	display: inline;
-}
+} */
 
 details.growingguide > div {
 	border: 2px solid rgb(230, 230, 230);
