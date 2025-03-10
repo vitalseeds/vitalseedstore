@@ -157,16 +157,50 @@ table.order-details {
 	margin-bottom: 8mm;
 	page-break-before: avoid;
 }
-
-.product,
-.quantity {
-	width: 30%;
+td .col-10,
+th .col-10 {
+	width: 10%;
 }
-.price,
-.tax {
+td .col-20,
+th .col-20 {
 	width: 20%;
 }
+td .col-30,
+th .col-30 {
+	width: 30%;
+}
+td .col-40,
+th .col-40 {
+	width: 40%;
+}
+td .col-50,
+th .col-50 {
+	width: 50%;
+}
+td .col-60,
+th .col-60 {
+	width: 60%;
+}
+td .col-70,
+th .col-70 {
+	width: 70%;
+}
+
+/*
+.product {
+	width: 60%;
+}
+.quantity {
+	width: 10%;
+}
+.shipping-tax {
+	width: 10%;
+}
+.price{
+	width: 8%;
+} */
 .item-tax {
+	/* width: 8%; */
 	color: #666;
 	font-style: italic;
 }
@@ -262,10 +296,10 @@ table.totals td {
 	border-bottom: 1px solid #ccc;
 }
 
-table.totals th.description,
+/* table.totals th.description,
 table.totals td.price {
 	width: 50%;
-}
+} */
 
 table.totals tr.order_total td,
 table.totals tr.order_total th {
