@@ -99,16 +99,17 @@
 <table class="order-details">
 	<thead>
 		<tr>
-			<th class="product"><?php _e( 'Product', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
-			<th class="quantity"><?php _e( 'Quantity', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
-			<th class="item-tax"><?php _e( 'Tax', 'vitalseedstore' ); ?></th>
-			<th class="price"><?php _e( 'Price', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
+			<th class="quantity" class="col-10"><?php _e( 'Quantity', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
+			<th class="product" colspan="2" class="col-60"><?php _e( 'Product', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
+			<th class="item-tax" class="col-10"><?php _e( 'VAT', 'vitalseedstore' ); ?></th>
+			<th class="price"  class="col-10"><?php _e( 'Price', 'woocommerce-pdf-invoices-packing-slips' ); ?></th>
 		</tr>
 	</thead>
 	<tbody>
 		<?php foreach ( $this->get_order_items() as $item_id => $item ) : ?>
 			<tr class="<?php echo apply_filters( 'wpo_wcpdf_item_row_class', 'item-'.$item_id, esc_attr( $this->get_type() ), $this->order, $item_id ); ?>">
-				<td class="product">
+				<td  class="col-10 quantity"><?php echo $item['quantity']; ?></td>
+				<td  class="col-60 product" colspan="2">
 					<?php $description_label = __( 'Description', 'woocommerce-pdf-invoices-packing-slips' ); // registering alternate label translation ?>
 					<span class="item-name"><?php echo $item['name']; ?></span>
 					<?php do_action( 'wpo_wcpdf_before_item_meta', $this->get_type(), $item, $this->order  ); ?>
@@ -120,9 +121,8 @@
 					</dl>
 					<?php do_action( 'wpo_wcpdf_after_item_meta', $this->get_type(), $item, $this->order  ); ?>
 				</td>
-				<td class="quantity"><?php echo $item['quantity']; ?></td>
-				<td class="item-tax"><?php echo $item['line_subtotal_tax']; ?></td>
-				<td class="price"><?php echo $item['order_price']; ?></td>
+				<td  class="col-10 item-tax"><?php echo $item['line_subtotal_tax']; ?></td>
+				<td  class="col-10 price"><?php echo $item['order_price']; ?></td>
 			</tr>
 		<?php endforeach; ?>
 	</tbody>
@@ -147,13 +147,13 @@
 				</div>
 				<?php do_action( 'wpo_wcpdf_after_customer_notes', $this->get_type(), $this->order ); ?>
 			</td>
-			<td class="no-borders" colspan="2">
+			<td class="no-borders" colspan="3">
 				<table class="totals">
 					<tfoot>
 						<?php foreach ( $this->get_woocommerce_totals() as $key => $total ) : ?>
 							<tr class="<?php echo esc_attr( $key ); ?>">
-								<th class="description"><?php echo $total['label']; ?></th>
-								<td class="price"><span class="totals-price"><?php echo $total['value']; ?></span></td>
+								<th class="col-50 description"><?php echo $total['label']; ?></th>
+								<td class="col-50 price" colspan="2"><span class="totals-price"><?php echo $total['value']; ?></span></td>
 							</tr>
 						<?php endforeach; ?>
 					</tfoot>
