@@ -175,7 +175,9 @@ function vital_custom_product_content()
 	if (function_exists('vs_sowing_calendar')) {
 		vs_sowing_calendar();
 	}
-	$growing_guide = category_growing_guide();
+	if (function_exists('category_growing_guide')) {
+		$growing_guide = category_growing_guide();
+	}
 }
 
 /**
