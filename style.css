@@ -179,6 +179,49 @@ h2:target {
 	}
 }
 
+/* FROM parent theme custom_css */
+
+body.mega-menu-primary .site-header {
+    padding-top: 0;
+}
+.product_title {
+	color: #668e32;
+	font-weight: 300;
+}
+.woocommerce-products-header__title {
+	color: #668e32;
+	font-weight: 300;
+}
+mark.count {
+	display: none;
+}
+ul.products li.product h2 {
+	font-weight: 800;
+}
+.woocommerce-demo-store .demo_store {
+   background-color: #668e32;
+}
+
+ul.products li.product {
+	width: 46.411765%;
+	float: left;
+	margin-right: 5.8823529412%;
+}
+
+ul.products li.product:nth-of-type( 2n ) {
+	margin-right: 0;
+}
+
+@media ( min-width: 768px ) {
+	ul.products li.product:nth-of-type( 2n ) {
+		margin-right: 5.8823529412%;
+	}
+}
+
+.woocommerce ul.products li.product a img {
+    border-radius: 15px 15px 15px 15px;
+}
+
 /* GROWING GUIDE */
 
 /* flickity on by default */
