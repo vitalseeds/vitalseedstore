@@ -128,11 +128,13 @@ if (function_exists('get_field')) {
 			// get acf field from category
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
-				echo "<details class='growingguide'>";
-				echo "<summary>" . $growing_guide[0]->post_title . "</summary><div>	";
+				// echo "<details class='growingguide'>";
+				// echo "<summary>" . $growing_guide[0]->post_title .
+				// "</summary><div>  ";
+				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
 				$args = array('growing_guide_id' => $growing_guide[0]->ID, 'show_images' => $show_images);
 				get_template_part('parts/growingguide', 'sections', $args);
-				echo "</div></details>";
+				// echo "</div></details>";
 			}
 		}
 	}
@@ -167,7 +169,7 @@ function vital_custom_product_tab($tabs)
 	return $tabs;
 }
 // add_filter('woocommerce_product_tabs', 'vital_custom_product_tab');
-add_filter('woocommerce_product_tabs', '__return_empty_array');
+add_filter('woocommerce_product_tabs', '__return_empty_array', 98);
 
 add_action('woocommerce_after_main_content', 'vital_custom_product_content');
 function vital_custom_product_content()
