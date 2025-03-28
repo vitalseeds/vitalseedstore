@@ -248,3 +248,5 @@ function vital_invoice_order_totals($order_item_totals, $order) {
 	return $order_item_totals;
 }
 add_filter('wpo_wcpdf_raw_order_totals', 'vital_invoice_order_totals', 10, 2);
+
+require_once('includes/remove_seeds_url.php');
