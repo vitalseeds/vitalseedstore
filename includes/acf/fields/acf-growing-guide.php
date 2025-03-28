@@ -113,6 +113,27 @@ add_action('acf/include_fields', function () {
         'title' => 'Growing information',
         'fields' => array(
             array(
+                'key' => 'field_67e6d52f1c08a',
+                'label' => 'PDF',
+                'name' => 'pdf',
+                'aria-label' => '',
+                'type' => 'file',
+                'instructions' => '',
+                'required' => 0,
+                'conditional_logic' => 0,
+                'wrapper' => array(
+                    'width' => '',
+                    'class' => '',
+                    'id' => '',
+                ),
+                'return_format' => 'url',
+                'library' => 'all',
+                'min_size' => '',
+                'max_size' => '',
+                'mime_types' => '',
+                'allow_in_bindings' => 0,
+            ),
+            array(
                 'key' => 'field_6656ee4fa7c36',
                 'label' => 'Product category',
                 'name' => 'product_category',
