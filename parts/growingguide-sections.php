@@ -7,7 +7,9 @@ $ggid = $args["growing_guide_id"] ?? false;
 $htag = $args["heading_tag"] ?? (!$ggid ? 'h2' : 'h3');
 $show_images = $args["show_images"] ?? false;
 
-get_template_part('parts/growingguide', 'images', ['growing_guide_id' => $ggid]);
+if ($show_images){
+    get_template_part('parts/growingguide', 'images', ['growing_guide_id' => $ggid]);
+}
 
 if ($seed_sowing = get_field('seed_sowing', $ggid)) {
     echo "<$htag id='sow'>Seed Sowing</$htag>";
