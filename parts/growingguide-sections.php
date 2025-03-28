@@ -7,6 +7,10 @@ $ggid = $args["growing_guide_id"] ?? false;
 $htag = $args["heading_tag"] ?? (!$ggid ? 'h2' : 'h3');
 $show_images = $args["show_images"] ?? false;
 
+if ($pdf = get_field('pdf', $ggid)) {
+    echo "<a href='" . esc_url($pdf) . "' target='_blank' class=\"wp-block-file__button wp-element-button\">Download PDF</a>";
+}
+
 if ($show_images){
     get_template_part('parts/growingguide', 'images', ['growing_guide_id' => $ggid]);
 }
