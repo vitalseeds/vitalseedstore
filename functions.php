@@ -94,24 +94,17 @@ function hide_specific_product_variation($is_visible, $variation_id, $variable_p
 // If ACF enabled
 if (function_exists('get_field')) {
 
-	if (function_exists('vs_sowing_calendar')) {
-		add_action('woocommerce_archive_description', function () {
-			if (is_product_category()) {
-				$term = get_queried_object();
-				echo "<h4>Growing calendar</h4>";
-				vs_sowing_calendar("term_$term->term_id");
-			}
-		}, 3);
-	}
-
 	// Add the ACF field group for the Growers Guide
 	require_once('includes/acf/fields/acf-growing-guide.php');
-	function category_growing_guide($term_id = null)
+	require_once('includes/utils.php');
+
+	function category_growing_guide($term_id = null, $show_images=true)
 	{
 		$category = null;
-		$show_images = true;
+		$details = false;
 		if (is_product_category()) {
 			$category = get_queried_object();
+			$details = true;
 		} elseif (is_product()) {
 			$terms = get_the_terms(get_the_ID(), 'product_cat');
 			// Only use a 'seed' category, eg not 'large packet'
@@ -128,17 +121,59 @@ if (function_exists('get_field')) {
 			// get acf field from category
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
-				// echo "<details class='growingguide'>";
-				// echo "<summary>" . $growing_guide[0]->post_title .
-				// "</summary><div>  ";
-				echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
-				$args = array('growing_guide_id' => $growing_guide[0]->ID, 'show_images' => $show_images);
+				if ($details) {
+					echo "<details class='growingguide'><summary>" . $growing_guide[0]->post_title . "</summary><div>  ";
+					echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
+				}
+				$args = array(
+					'growing_guide_id' => $growing_guide[0]->ID,
+					'show_images' => $show_images,
+					'show_pdf_link' => true,
+
+				);
 				get_template_part('parts/growingguide', 'sections', $args);
-				// echo "</div></details>";
+				if ($details) {
+					echo "</div></details>";
+				}
 			}
 		}
 	}
-	add_action('woocommerce_archive_description', 'category_growing_guide', 3);
+
+	// Display vital content like Growing Guides and calendars
+
+	// Remove growing information product tabs
+
+	add_filter('woocommerce_product_tabs', '__return_empty_array', 98);
+
+	if (function_exists('vs_sowing_calendar')) {
+		add_action('woocommerce_archive_description', function () {
+			if (is_product_category()) {
+				$term = get_queried_object();
+				echo "<h4>Growing calendar</h4>";
+				vs_sowing_calendar("term_$term->term_id");
+			}
+		}, 3);
+		add_action('woocommerce_after_single_product_summary', function () {
+			vs_sowing_calendar();
+		}, 3);
+	}
+
+	if (function_exists('category_growing_guide')) {
+		// add_action('woocommerce_before_single_product_summary', function () {
+		add_action('woocommerce_after_single_product_summary', function () {
+			$growing_guide = category_growing_guide();
+		}, 3);
+
+		add_action('woocommerce_archive_description', function () {
+			if (is_seed_category()) {
+				remove_action('woocommerce_archive_description', 'woocommerce_taxonomy_archive_description', 10);
+				category_growing_guide(null, false);
+			}
+		}, 3);
+		// Remove the default WooCommerce taxonomy archive description
+	}
+
+	// add_action('woocommerce_archive_description', 'category_growing_guide', 3);
 
 	// add_action('woocommerce_after_single_product_summary', 'category_growing_guide', 3);
 } else {
@@ -158,29 +193,17 @@ if (function_exists('get_field')) {
  * @param array $tabs An array of existing WooCommerce product tabs.
  * @return array Modified array of WooCommerce product tabs with the custom tab added.
  */
-function vital_custom_product_tab($tabs)
-{
-	$tabs['vital_tab'] = array(
-		'title'    => __('Growing Information', 'vital-sowing-calendar'),
-		'priority' => 1,
-		'callback' => 'vital_custom_product_content'
-	);
-	return [];
-	return $tabs;
-}
+// function vital_custom_product_tab($tabs)
+// {
+// 	$tabs['vital_tab'] = array(
+// 		'title'    => __('Growing Information', 'vital-sowing-calendar'),
+// 		'priority' => 1,
+// 		'callback' => 'vital_custom_product_content'
+// 	);
+// 	return [];
+// 	return $tabs;
+// }
 // add_filter('woocommerce_product_tabs', 'vital_custom_product_tab');
-add_filter('woocommerce_product_tabs', '__return_empty_array', 98);
-
-add_action('woocommerce_after_main_content', 'vital_custom_product_content');
-function vital_custom_product_content()
-{
-	if (function_exists('vs_sowing_calendar')) {
-		vs_sowing_calendar();
-	}
-	if (function_exists('category_growing_guide')) {
-		$growing_guide = category_growing_guide();
-	}
-}
 
 /**
  * Filters the main term used in WooCommerce breadcrumbs.
@@ -251,4 +274,47 @@ function vital_invoice_order_totals($order_item_totals, $order) {
 }
 add_filter('wpo_wcpdf_raw_order_totals', 'vital_invoice_order_totals', 10, 2);
 
-require_once('includes/remove_seeds_url.php');/** * Adds a custom meta box to the product edit screen in the WordPress admin. * * Displays a link to the product's related Growing Guide or a message if none is found. * * @hook add_action('add_meta_boxes') */add_action('add_meta_boxes', function () {	add_meta_box(		'growing_guide_link',		__('Related Growing Guide', 'vital-sowing-calendar'),		'display_growing_guide_link',		'product',		'side',		'high' // Set priority to 'high' to make it appear directly under the Publish meta box	);});/** * Displays the content of the "Related Growing Guide" meta box. * * Retrieves product categories and checks for a related Growing Guide via ACF. * Displays an edit link if found, otherwise shows a "not found" message. * * @param WP_Post $post The current post object. */function display_growing_guide_link($post) {	$terms = get_the_terms($post->ID, 'product_cat');	if ($terms && !is_wp_error($terms)) {		foreach ($terms as $term) {			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);			if ($growing_guide) {				echo '<p><a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Edit Growing Guide', 'vital-sowing-calendar') . '</a></p>';				return;			}		}	}	echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';}
+require_once('includes/remove_seeds_url.php');
+
+
+// Admin tweaks
+
+/**
+ * Adds a custom meta box to the product edit screen in the WordPress admin.
+ *
+ * Displays a link to the product's related Growing Guide or a message if none is found.
+ *
+ * @hook add_action('add_meta_boxes')
+ */
+add_action('add_meta_boxes', function () {
+	add_meta_box(
+		'growing_guide_link',
+		__('Related Growing Guide', 'vital-sowing-calendar'),
+		'display_growing_guide_link',
+		'product',
+		'side',
+		'high' // Set priority to 'high' to make it appear directly under the Publish meta box
+	);
+});
+
+/**
+ * Displays the content of the "Related Growing Guide" meta box.
+ *
+ * Retrieves product categories and checks for a related Growing Guide via ACF.
+ * Displays an edit link if found, otherwise shows a "not found" message.
+ *
+ * @param WP_Post $post The current post object.
+ */
+function display_growing_guide_link($post) {
+	$terms = get_the_terms($post->ID, 'product_cat');
+	if ($terms && !is_wp_error($terms)) {
+		foreach ($terms as $term) {
+			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
+			if ($growing_guide) {
+				echo '<p><a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Edit Growing Guide', 'vital-sowing-calendar') . '</a></p>';
+				return;
+			}
+		}
+	}
+	echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';
+}

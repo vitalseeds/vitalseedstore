@@ -261,6 +261,12 @@ ul.products li.product:nth-of-type( 2n ) {
 	margin-top: 2rem;
 }
 
+a.growers-guide-pdf-link {
+	font-size: 0.8rem;
+	margin-bottom: 1.8rem;
+	/* float : right; */
+}
+
 /* Growing guide */
 /* Styling the Disclosure Widgets */
 

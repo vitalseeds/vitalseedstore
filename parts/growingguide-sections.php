@@ -6,9 +6,11 @@ $ggid = $args["growing_guide_id"] ?? false;
 // Set the heading tag from args or default to h2 for the main growing guide
 $htag = $args["heading_tag"] ?? (!$ggid ? 'h2' : 'h3');
 $show_images = $args["show_images"] ?? false;
+$show_pdf_link = $args["show_images"] ?? false;
 
-if ($pdf = get_field('pdf', $ggid)) {
-    echo "<a href='" . esc_url($pdf) . "' target='_blank' class=\"wp-block-file__button wp-element-button\">Download PDF</a>";
+
+if ($show_pdf_link && $pdf = get_field('pdf', $ggid)) {
+    echo "<a href='" . esc_url($pdf) . "' target='_blank' class=\"wp-block-file__button wp-element-button growers-guide-pdf-link\">Download PDF</a>";
 }
 
 if ($show_images){
