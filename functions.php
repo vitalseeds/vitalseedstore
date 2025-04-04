@@ -136,7 +136,27 @@ if (function_exists('get_field')) {
 					echo "</div></details>";
 				}
 			}
+			return $growing_guide;
 		}
+	}
+
+	function product_growing_guide($product_id=null, $show_images=false)
+	{
+		if (!$product_id && is_product()) {
+			$product_id = get_the_ID();
+		}
+		if ($product_id && get_field('growing_guide', $product_id)) {
+			$growing_guide = get_field('growing_guide', $product_id);
+			$args = array(
+				'growing_guide_id' => $growing_guide->ID,
+				'show_images' => $show_images,
+				'show_pdf_link' => false,
+
+			);
+			get_template_part('parts/growingguide', 'sections', $args);
+			return $growing_guide;
+		}
+		return false;
 	}
 
 	// Display vital content like Growing Guides and calendars
@@ -161,7 +181,8 @@ if (function_exists('get_field')) {
 	if (function_exists('category_growing_guide')) {
 		// add_action('woocommerce_before_single_product_summary', function () {
 		add_action('woocommerce_after_single_product_summary', function () {
-			$growing_guide = category_growing_guide();
+			// Either display product growing guide or category growing guide
+			product_growing_guide() ?  : category_growing_guide();
 		}, 3);
 
 		add_action('woocommerce_archive_description', function () {
@@ -306,15 +327,23 @@ add_action('add_meta_boxes', function () {
  * @param WP_Post $post The current post object.
  */
 function display_growing_guide_link($post) {
+	if (get_field('growing_guide', $post->ID)) {
+		$growing_guide = get_field('growing_guide', $post->ID);
+		echo '<p>Product <a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
+		echo '<p>A growing guide is specified for this product, so overrides category growing guide.</p>';
+		return;
+	}
 	$terms = get_the_terms($post->ID, 'product_cat');
 	if ($terms && !is_wp_error($terms)) {
 		foreach ($terms as $term) {
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
 			if ($growing_guide) {
-				echo '<p><a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Edit Growing Guide', 'vital-sowing-calendar') . '</a></p>';
+				echo '<p>Category <a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
+				echo '<p>Growing guide is specified for category and not overridden by product.</p>';
 				return;
 			}
 		}
 	}
 	echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';
+	echo '<p>No growing guide, he specified for either the category or product, so no guide will be shown</p>';
 }

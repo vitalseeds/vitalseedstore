@@ -28,11 +28,13 @@ add_action('acf/include_fields', function () {
                 'post_status' => '',
                 'taxonomy' => '',
                 'return_format' => 'object',
-                'multiple' => 1,
-                'allow_null' => 0,
+                'multiple' => 0,
+                'allow_null' => 1,
+                'allow_in_bindings' => 0,
                 'bidirectional' => 0,
                 'ui' => 1,
-                'bidirectional_target' => array(),
+                'bidirectional_target' => array(
+                ),
             ),
         ),
         'location' => array(
@@ -43,16 +45,23 @@ add_action('acf/include_fields', function () {
                     'value' => 'product_cat',
                 ),
             ),
+            array(
+                array(
+                    'param' => 'post_type',
+                    'operator' => '==',
+                    'value' => 'product',
+                ),
+            ),
         ),
         'menu_order' => 0,
         'position' => 'acf_after_title',
-        'style' => 'default',
+        'style' => 'seamless',
         'label_placement' => 'top',
         'instruction_placement' => 'label',
         'hide_on_screen' => '',
         'active' => true,
         'description' => '',
-        'show_in_rest' => 1,
+        'show_in_rest' => 0,
     ));
 
     acf_add_local_field_group(array(
