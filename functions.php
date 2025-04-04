@@ -330,7 +330,7 @@ function display_growing_guide_link($post) {
 	if (get_field('growing_guide', $post->ID)) {
 		$growing_guide = get_field('growing_guide', $post->ID);
 		echo '<p>Product <a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
-		echo '<p>A growing guide is specified for this product, so overrides category growing guide.</p>';
+		echo '<p><em>A growing guide is specified for this product, so it overrides the category growing guide.</em></p>';
 		return;
 	}
 	$terms = get_the_terms($post->ID, 'product_cat');
@@ -339,11 +339,11 @@ function display_growing_guide_link($post) {
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
 			if ($growing_guide) {
 				echo '<p>Category <a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
-				echo '<p>Growing guide is specified for category and not overridden by product.</p>';
+				echo '<p><em>Growing guide is specified for category and not overridden by product.</em></p>';
 				return;
 			}
 		}
 	}
 	echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';
-	echo '<p>No growing guide, he specified for either the category or product, so no guide will be shown</p>';
+	echo '<p><em>No growing guide is specified for either category or product, so no guide will be shown.</em></p>';
 }
