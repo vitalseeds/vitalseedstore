@@ -329,8 +329,8 @@ add_action('add_meta_boxes', function () {
 function display_growing_guide_link($post) {
 	if (get_field('growing_guide', $post->ID)) {
 		$growing_guide = get_field('growing_guide', $post->ID);
-		echo '<p>Product <a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
-		echo '<p><em>A growing guide is specified for this product, so it overrides the category growing guide.</em></p>';
+		echo '<p><a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . $growing_guide->post_title . '</a></p>';
+		echo '<p><em>A growing guide is specified for the <strong>product</strong>, so it overrides the category growing guide.</em></p>';
 		return;
 	}
 	$terms = get_the_terms($post->ID, 'product_cat');
@@ -338,8 +338,8 @@ function display_growing_guide_link($post) {
 		foreach ($terms as $term) {
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
 			if ($growing_guide) {
-				echo '<p>Category <a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></p>';
-				echo '<p><em>Growing guide is specified for category and not overridden by product.</em></p>';
+				echo '<p><a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . $growing_guide->post_title . '</a></p>';
+				echo '<p><em>Growing guide is specified for <strong>category</strong> and not overridden by product.</em></p>';
 				return;
 			}
 		}
