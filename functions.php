@@ -122,11 +122,11 @@ if (function_exists('get_field')) {
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
 			if ($growing_guide) {
 				if ($details) {
-					echo "<details class='growingguide'><summary>" . $growing_guide[0]->post_title . "</summary><div>  ";
-					echo "<h2>" . $growing_guide[0]->post_title . "</h2>";
+					echo "<details class='growingguide'><summary>" . $growing_guide->post_title . "</summary><div>  ";
+					echo "<h2>" . $growing_guide->post_title . "</h2>";
 				}
 				$args = array(
-					'growing_guide_id' => $growing_guide[0]->ID,
+					'growing_guide_id' => $growing_guide->ID,
 					'show_images' => $show_images,
 					'show_pdf_link' => true,
 
