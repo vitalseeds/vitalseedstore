@@ -96,6 +96,7 @@ if (function_exists('get_field')) {
 
 	// Add the ACF field group for the Growers Guide
 	require_once('includes/acf/fields/acf-growing-guide.php');
+	require_once('includes/acf/fields/acf-migration-backups.php');
 	require_once('includes/utils.php');
 
 	function category_growing_guide($term_id = null, $show_images=true)
@@ -338,7 +339,7 @@ function display_growing_guide_link($post) {
 		foreach ($terms as $term) {
 			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
 			if ($growing_guide) {
-				echo '<p><a href="' . get_edit_post_link($growing_guide[0]->ID) . '" target="_blank">' . $growing_guide->post_title . '</a></p>';
+				echo '<p><a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . $growing_guide->post_title . '</a></p>';
 				echo '<p><em>Growing guide is specified for <strong>category</strong> and not overridden by product.</em></p>';
 				return;
 			}
