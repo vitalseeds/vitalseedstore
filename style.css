@@ -290,3 +290,56 @@ details.growingguide > div {
 	margin-top: 0;
 	padding: 1rem;
 }
+
+/* Image thumbnails flexible grid */
+/* eg sow by month listing */
+
+div.vital-image-list ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 20px; /* Adjust spacing between items */
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+div.vital-image-list ul li {
+	flex: 0 0 calc(16.66% - 20px); /* 6 items per row with spacing */
+	box-sizing: border-box;
+	text-align: center; /* Center-align content */
+}
+
+div.vital-image-list ul li img {
+	width: 100%; /* Ensure the image fills its container */
+	height: 100%; /* Ensure the image fills its container */
+	object-fit: cover; /* Maintain aspect ratio and fill container */
+}
+
+div.vital-image-list ul li a {
+	text-decoration: none;
+	color: inherit; /* Inherit text color */
+	display: block;
+	margin-top: 10px; /* Space between image and title */
+}
+
+@media screen and (max-width: 1025px) {
+	div.vital-image-list ul li {
+		flex: 0 0 calc(33.33% - 20px); /* 3 items per row with spacing */
+	}
+}
+
+@media screen and (max-width: 768px) {
+	div.vital-image-list ul li {
+		flex: 0 0 100%; /* Full width for each item */
+	}
+}
+
+@media screen and (max-width: 300px) {
+	div.vital-image-list ul li {
+		flex: 0 0 100%; /* Full width for each item */
+	}
+}
+
+figcaption {
+	margin-top: 1rem;
+}
