@@ -41,8 +41,6 @@ get_header(); ?>
         $category = function_exists('get_field') ? get_field('product_category') : null;
 
         if ($category && $category instanceof WP_Term) {
-            // echo "<h2>" . $category->name . "</h2>";
-            echo "<h2>Popular varieties</h2>";
             $category_id = $category->term_id;
             $args = array(
                 'post_type' => 'product',
@@ -60,6 +58,10 @@ get_header(); ?>
             );
             $products = new WP_Query($args);
             if ($products->have_posts()) {
+                // echo "<h2>" . $category->name . "</h2>";
+                if ($products->found_posts > 1) {
+                    echo "<h2>Varieties</h2>";
+                }
                 wc_set_loop_prop('columns', 4);
                 woocommerce_product_loop_start();
                 while ($products->have_posts()) {
