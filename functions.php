@@ -42,6 +42,30 @@ function storefront_primary_navigation()
 <?php
 }
 
+function dequeue_all_elementor_styles() {
+	global $wp_styles;
+
+	$elementor_styles = array_filter(
+		array_keys($wp_styles->registered),
+		fn($handle) => strpos($handle, 'elementor') !== false
+	);
+
+	foreach ($elementor_styles as $handle) {
+		wp_dequeue_style($handle);
+	}
+	// "elementor-icons"
+	// "elementor-gallery"
+	// "elementor-wp-admin-bar"
+	// "elementor-frontend"
+	// "elementor-icons-shared-0"
+	// "elementor-common"
+	// "elementor-post-12120" (default kit)
+	// "elementor-post-7905" (?elementor_library=seed-sowing-guide)
+	// "yoast-seo-elementor"
+}
+
+// add_action('wp_enqueue_scripts', 'dequeue_all_elementor_styles', 100);
+
 include_once('includes/woocommerce.php');
 include_once('includes/breadcrumbs.php');
 include_once('includes/invoices.php');

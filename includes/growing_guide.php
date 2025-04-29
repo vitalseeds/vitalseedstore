@@ -171,7 +171,6 @@ add_action('add_meta_boxes', function () {
 	);
 });
 
-
 /**
  * (Unused) Adds Growing Information product tab to the WooCommerce product pages.
  *
