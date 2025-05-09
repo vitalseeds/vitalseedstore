@@ -196,7 +196,6 @@ add_action('admin_menu', function () {
 		'render_growing_guide_report_page'
 	);
 });
-
 /**
  * Renders the Growing Guide Report admin page.
  */
@@ -209,7 +208,6 @@ function render_growing_guide_report_page() {
 		return is_seed_category($category->term_id);
 	});
 
-	// Filter categories without a growing guide if requested
 	$filter_no_guide = isset($_GET['filter_no_guide']) && $_GET['filter_no_guide'] === '1';
 	if ($filter_no_guide) {
 		$categories = array_filter($categories, function ($category) {
@@ -217,11 +215,9 @@ function render_growing_guide_report_page() {
 		});
 	}
 
-	// Determine sorting order
 	$order = isset($_GET['order']) && $_GET['order'] === 'desc' ? 'desc' : 'asc';
 	$next_order = $order === 'asc' ? 'desc' : 'asc';
 
-	// Sort categories by name
 	if (isset($_GET['orderby']) && $_GET['orderby'] === 'category_name') {
 		usort($categories, function ($a, $b) use ($order) {
 			$result = strcmp($a->name, $b->name);
@@ -229,7 +225,6 @@ function render_growing_guide_report_page() {
 		});
 	}
 
-	// Handle sorting by Growing Guide
 	if (isset($_GET['orderby']) && $_GET['orderby'] === 'growing_guide') {
 		usort($categories, function ($a, $b) use ($order) {
 			$a_guide = get_field('growing_guide', 'product_cat_' . $a->term_id);
@@ -241,55 +236,14 @@ function render_growing_guide_report_page() {
 		});
 	}
 
-	echo '<div class="wrap">';
-	echo '<h1>' . __('Growing Guide Report', 'vital-sowing-calendar') . '</h1>';
-	echo '<form method="get" action="">';
-	echo '<input type="hidden" name="post_type" value="growing-guide">';
-	echo '<input type="hidden" name="page" value="growing-guide-cat-report">';
-	echo '<label>';
-	echo '<input type="checkbox" name="filter_no_guide" value="1"' . ($filter_no_guide ? ' checked' : '') . '> ';
-	echo __('Only categories without a Growing Guide', 'vital-sowing-calendar');
-	echo '</label>';
-	echo '<button type="submit" class="button">' . __('Filter', 'vital-sowing-calendar') . '</button>';
-	echo '</form>';
-	echo '<table class="widefat fixed striped">';
-	echo '<thead><tr>';
-	echo '<th><a href="?post_type=growing-guide&page=growing-guide-cat-report&orderby=category_name&order=' . $next_order . '">' . __('Category Name', 'vital-sowing-calendar') . '</a></th>';
-	echo '<th><a href="?post_type=growing-guide&page=growing-guide-cat-report&orderby=growing_guide&order=' . $next_order . '">' . __('Growing Guide', 'vital-sowing-calendar') . '</a></th>';
-	echo '</tr></thead>';
-	echo '<tbody>';
-
-	foreach ($categories as $category) {
-		$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
-		echo '<tr>';
-		echo '<td><a href="' . get_edit_term_link($category->term_id, 'product_cat') . '">' . esc_html($category->name) . '</a></td>';
-		if ($growing_guide) {
-			echo '<td><a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . esc_html($growing_guide->post_title) . '</a></td>';
-		} else {
-			echo '<td>' . __('-', 'vital-sowing-calendar') . '</td>';
-		}
-		echo '</tr>';
-	}
-
-	echo '</tbody>';
-	echo '</table>';
-	echo '</div>';
-}
-
-/**
- * Adds an admin page to report the growing guide associated with each product.
- */
-add_action('admin_menu', function () {
-	$parent_slug = 'edit.php?post_type=growing-guide'; // Move under 'Growing Guides' post type menu
-	add_submenu_page(
-		$parent_slug,
-		__('Product Guides', 'vital-sowing-calendar'),
-		__('Product Guides', 'vital-sowing-calendar'),
-		'manage_options',
-		'growing-guide-product-report',
-		'render_growing_guide_product_report_page'
+	$args = array(
+		'items' => $categories,
+		'filter_no_guide' => $filter_no_guide,
+		'next_order' => $next_order,
+		'type' => 'category',
 	);
-});
+	include plugin_dir_path(__FILE__) . '../templates/admin/growing-guide-table.php';
+}
 
 /**
  * Renders the Growing Guide Report admin page for products.
@@ -301,7 +255,6 @@ function render_growing_guide_product_report_page() {
 		'post_status' => 'publish',
 	));
 
-	// Filter products without a growing guide if requested
 	$filter_no_guide = isset($_GET['filter_no_guide']) && $_GET['filter_no_guide'] === '1';
 	if ($filter_no_guide) {
 		$products = array_filter($products, function ($product) {
@@ -309,11 +262,9 @@ function render_growing_guide_product_report_page() {
 		});
 	}
 
-	// Determine sorting order
 	$order = isset($_GET['order']) && $_GET['order'] === 'desc' ? 'desc' : 'asc';
 	$next_order = $order === 'asc' ? 'desc' : 'asc';
 
-	// Sort products by title
 	if (isset($_GET['orderby']) && $_GET['orderby'] === 'product_name') {
 		usort($products, function ($a, $b) use ($order) {
 			$result = strcmp($a->post_title, $b->post_title);
@@ -321,36 +272,13 @@ function render_growing_guide_product_report_page() {
 		});
 	}
 
-	echo '<div class="wrap">';
-	echo '<h1>' . __('Growing Guide Product Report', 'vital-sowing-calendar') . '</h1>';
-	echo '<form method="get" action="">';
-	echo '<input type="hidden" name="post_type" value="growing-guide">';
-	echo '<input type="hidden" name="page" value="growing-guide-product-report">';
-	echo '<label>';
-	echo '<input type="checkbox" name="filter_no_guide" value="1"' . ($filter_no_guide ? ' checked' : '') . '> ';
-	echo __('Only products without a Growing Guide', 'vital-sowing-calendar');
-	echo '</label>';
-	echo '<button type="submit" class="button">' . __('Filter', 'vital-sowing-calendar') . '</button>';
-	echo '</form>';
-	echo '<table class="widefat fixed striped">';
-	echo '<thead><tr>';
-	echo '<th><a href="?post_type=growing-guide&page=growing-guide-product-report&orderby=product_name&order=' . $next_order . '">' . __('Product Name', 'vital-sowing-calendar') . '</a></th>';
-	echo '<th>' . __('Growing Guide', 'vital-sowing-calendar') . '</th>';
-	echo '</tr></thead>';
-	echo '<tbody>';
-
-	foreach ($products as $product) {
-		echo '<tr>';
-		echo '<td><a href="' . get_edit_post_link($product->ID) . '">' . esc_html($product->post_title) . '</a></td>';
-		echo '<td>';
-		display_growing_guide_link($product, false);
-		echo '</td>';
-		echo '</tr>';
-	}
-
-	echo '</tbody>';
-	echo '</table>';
-	echo '</div>';
+	$args = array(
+		'items' => $products,
+		'filter_no_guide' => $filter_no_guide,
+		'next_order' => $next_order,
+		'type' => 'product',
+	);
+	include plugin_dir_path(__FILE__) . '../templates/admin/growing-guide-table.php';
 }
 
 /**
