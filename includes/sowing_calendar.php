@@ -49,10 +49,14 @@ function render_sowing_calendar_product_report_page() {
 	echo '<tbody>';
 
 	foreach ($products as $product) {
-
 		$sow_month_parts = get_value_from_field_or_category('vs_calendar_sow_month_parts', $product->ID);
 		$plant_month_parts = get_value_from_field_or_category('vs_calendar_plant_month_parts', $product->ID);
 		$harvest_month_parts = get_value_from_field_or_category('vs_calendar_harvest_month_parts', $product->ID);
+
+		$fields = get_fields($product->ID);
+		$has_product_calendar = !empty($fields['vs_calendar_sow_month_parts']) ||
+							 !empty($fields['vs_calendar_plant_month_parts']) ||
+							 !empty($fields['vs_calendar_harvest_month_parts']);
 
 		echo '<tr>';
 		echo '<td><a href="' . get_edit_post_link($product->ID) . '">' . esc_html($product->post_title) . '</a></td>';
@@ -70,6 +74,13 @@ function render_sowing_calendar_product_report_page() {
 				$parts[] = 'harvest';
 			}
 			echo implode(' | ', $parts);
+			if (!$has_product_calendar) {
+				$product_cats = wp_get_post_terms($product->ID, 'product_cat');
+				$cat = end($product_cats);
+				if ($cat !== null) {
+					echo ' <em>(<a href="' . esc_url(get_edit_term_link($cat, 'product_cat')) . '">' . esc_html($cat->name) . '</a>)</em>';
+				}
+			}
 		} else {
 			echo '-';
 		}
