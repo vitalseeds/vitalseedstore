@@ -283,6 +283,11 @@ details.growingguide {
 	margin-bottom: 1rem;
 }
 
+/* correct storefront right float */
+div.product h3 {
+	float: none;
+}
+
 details.growingguide > summary {
 	background-color: rgb(230, 230, 230);
 	cursor: pointer;
