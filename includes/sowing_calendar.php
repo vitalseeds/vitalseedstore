@@ -121,7 +121,10 @@ function render_sowing_calendar_category_report_page() {
 	$filter_no_calendar = isset($_GET['filter_no_calendar']) && $_GET['filter_no_calendar'] === '1';
 	if ($filter_no_calendar) {
 		$categories = array_filter($categories, function ($category) {
-			return !get_field('sowing_calendar', 'product_cat_' . $category->term_id);
+			return
+				empty(get_field('vs_calendar_sow_month_parts', 'product_cat_' . $category->term_id)) &&
+				empty(get_field('vs_calendar_plant_month_parts', 'product_cat_' . $category->term_id)) &&
+				empty(get_field('vs_calendar_harvest_month_parts', 'product_cat_' . $category->term_id));
 		});
 	}
 
@@ -186,7 +189,12 @@ function render_sowing_calendar_category_report_page() {
 
 		echo '<tr>';
 		echo '<td>' . esc_html($category->term_id) . '</td>';
-		echo '<td><a href="' . get_edit_term_link($category->term_id, 'product_cat') . '">' . esc_html($category->name) . '</a></td>';
+		$view_link = get_term_link($category->term_id, 'product_cat');
+		$edit_link = get_edit_term_link($category->term_id, 'product_cat');
+		echo '<td>';
+		echo '<a href="' . esc_url($view_link) . '" target="_blank">' . esc_html($category->name) . '</a>';
+		echo ' <a href="' . esc_url($edit_link) . '" style="font-size: 90%;">(edit)</a>';
+		echo '</td>';
 		echo '<td>';
 
 		if ($sow_month_parts || $plant_month_parts || $harvest_month_parts) {
