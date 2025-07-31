@@ -113,6 +113,8 @@ function render_sowing_calendar_category_report_page() {
 	$categories = get_terms(array(
 		'taxonomy' => 'product_cat',
 		'hide_empty' => false,
+		'orderby' => 'name',
+		'order' => 'ASC',
 	));
 
 	// Filter categories without a sowing calendar if requested
@@ -148,8 +150,11 @@ function render_sowing_calendar_category_report_page() {
 	echo '</form>';
 	echo '<table class="widefat fixed striped">';
 	echo '<thead><tr>';
+	echo '<th>ID</th>';
 	echo '<th><a href="?post_type=growing-guide&page=sowing-calendar-category-report&orderby=category_name&order=' . $next_order . '">' . __('Category Name', 'vital-sowing-calendar') . '</a></th>';
-	echo '<th>' . __('Sowing Calendar', 'vital-sowing-calendar') . '</th>';
+	echo '<th>Sowing Calendar</th>';
+	echo '<th>Growing Guide</th>';
+	echo '<th>Product Count</th>';
 	echo '</tr></thead>';
 	echo '<tbody>';
 
@@ -159,7 +164,28 @@ function render_sowing_calendar_category_report_page() {
 		$plant_month_parts = get_field('vs_calendar_plant_month_parts', 'product_cat_' . $category->term_id);
 		$harvest_month_parts = get_field('vs_calendar_harvest_month_parts', 'product_cat_' . $category->term_id);
 
+		// Get the number of products assigned to this category
+		$product_count = count(get_posts(array(
+			'post_type' => 'product',
+			'posts_per_page' => -1,
+			'tax_query' => array(
+				array(
+					'taxonomy' => 'product_cat',
+					'field'    => 'term_id',
+					'terms'    => $category->term_id,
+				),
+			),
+			'fields' => 'ids',
+		)));
+
+		$growing_guide_id = get_field('growing_guide', 'product_cat_' . $category->term_id);
+		if ($growing_guide_id) {
+			$growing_guide_link = get_edit_post_link($growing_guide_id);
+			$growing_guide_title = get_the_title($growing_guide_id);
+		}
+
 		echo '<tr>';
+		echo '<td>' . esc_html($category->term_id) . '</td>';
 		echo '<td><a href="' . get_edit_term_link($category->term_id, 'product_cat') . '">' . esc_html($category->name) . '</a></td>';
 		echo '<td>';
 
@@ -178,6 +204,16 @@ function render_sowing_calendar_category_report_page() {
 		} else {
 			echo '-';
 		}
+		echo '</td>';
+		echo '<td>';
+		if (isset($growing_guide_link)) {
+			echo '<a href="' . esc_url($growing_guide_link) . '">' . esc_html($growing_guide_title) . '</a>';
+		} else {
+			echo '-';
+		}
+		echo '</td>';
+		echo '<td>';
+		echo $product_count > 0 ? '<span class="count">' . esc_html($product_count) . '</span>' : '-';
 		echo '</td>';
 		echo '</tr>';
 	}
