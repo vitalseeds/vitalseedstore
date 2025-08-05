@@ -284,8 +284,9 @@ details.growingguide {
 }
 
 /* correct storefront right float */
-div.product h3, .growingguide h3 {
+h3, div.product h3, .growingguide h3 {
 	float: none;
+	text-transform: none;
 }
 
 details.growingguide > summary {
