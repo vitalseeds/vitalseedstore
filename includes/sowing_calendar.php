@@ -182,6 +182,8 @@ function render_sowing_calendar_category_report_page() {
 		)));
 
 		$growing_guide_id = get_field('growing_guide', 'product_cat_' . $category->term_id);
+		$growing_guide_link = "";
+		$growing_guide_title = "-";
 		if ($growing_guide_id) {
 			$growing_guide_link = get_edit_post_link($growing_guide_id);
 			$growing_guide_title = get_the_title($growing_guide_id);
