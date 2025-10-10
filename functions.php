@@ -4,17 +4,44 @@ use Yoast\WP\Duplicate_Post\UI\Column;
 
 function my_theme_enqueue_styles()
 {
-
 	$parent_style = 'storefront-style';
-	// wp_enqueue_style($parent_style, get_template_directory_uri() . '/style.css');
+
+	// Ensure parent theme stylesheet is enqueued (WordPress auto-enqueues child theme)
+	if (!wp_style_is($parent_style, 'enqueued')) {
+		wp_enqueue_style($parent_style, get_template_directory_uri() . '/style.css');
+	}
+
+	// Build dependencies array including parent and WooCommerce styles
+	$dependencies = array($parent_style);
+
+	// Add WooCommerce extension styles as dependencies if they exist
+	// This ensures child theme loads after ALL Storefront styles
+	$wc_extension_styles = array(
+		'storefront-woocommerce-style',
+		'storefront-woocommerce-brands-style',
+		'storefront-woocommerce-bookings-style',
+		'storefront-woocommerce-wishlists-style'
+	);
+
+	foreach ($wc_extension_styles as $style_handle) {
+		if (wp_style_is($style_handle, 'registered') || wp_style_is($style_handle, 'enqueued')) {
+			$dependencies[] = $style_handle;
+		}
+	}
+
+	// WordPress automatically enqueues the child theme style.css with handle 'storefront-child-style'
+	// Dequeue it and re-enqueue with proper dependencies to control loading order
+	wp_dequeue_style('storefront-child-style'); // Remove auto-enqueued child theme style
+
+	// Enqueue child theme stylesheet with all Storefront styles as dependencies
 	wp_enqueue_style(
-		'child-style',
+		'vitalseedstore-child-style',
 		get_stylesheet_directory_uri() . '/style.css',
-		array($parent_style), // Ensure storefront is loaded first
+		$dependencies, // Ensure all Storefront styles load first
 		wp_get_theme()->get('Version')
 	);
 }
-add_action('wp_enqueue_scripts', 'my_theme_enqueue_styles');
+add_action('wp_enqueue_scripts', 'my_theme_enqueue_styles', 150); // Load after all Storefront styles (including extensions at priority 99)
 
 remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
 
