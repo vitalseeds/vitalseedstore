@@ -358,3 +358,9 @@ div.vital-image-list ul li a {
 figcaption {
 	margin-top: 1rem;
 }
+
+/* Elementor hacks */
+/* Restore previous behaviour of centred h3 headings in elementor content */
+.elementor-widget-container h3 {
+	width: inherit;
+}
