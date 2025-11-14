@@ -91,8 +91,16 @@ if (function_exists('vs_sowing_calendar')) {
 	add_action('woocommerce_archive_description', function () {
 		if (is_product_category()) {
 			$term = get_queried_object();
-			echo "<h4>Growing calendar</h4>";
+			// Capture calendar output to check if it has content
+			ob_start();
 			vs_sowing_calendar("term_$term->term_id");
+			$calendar_output = ob_get_clean();
+
+			// Only display heading if calendar has content
+			if (!empty($calendar_output)) {
+				echo "<h4>Growing calendar</h4>";
+				echo $calendar_output;
+			}
 		}
 	}, 3);
 	add_action('woocommerce_after_single_product_summary', function () {
