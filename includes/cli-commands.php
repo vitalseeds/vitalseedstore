@@ -92,6 +92,16 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 			WP_CLI::log("[DRY RUN] Would clear existing menu items.");
 		}
 
+		// Clear existing submenu items if requested
+		if ($clear_submenu && $parent_menu_item_id) {
+			if (!$dry_run) {
+				$cleared = $this->clear_submenu_items($menu->term_id, $parent_menu_item_id);
+				WP_CLI::success("Cleared $cleared existing child items under '$parent_menu_item_title'.");
+			} else {
+				WP_CLI::log("[DRY RUN] Would clear existing child items under '$parent_menu_item_title'.");
+			}
+		}
+
 		// Get categories to add
 		$categories = $this->get_categories_tree($parent_category);
 
@@ -171,6 +181,25 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 				wp_delete_post($item->ID, true);
 			}
 		}
+	}
+
+	/**
+	 * Clear all child items under a specific parent menu item
+	 */
+	private function clear_submenu_items($menu_id, $parent_item_id) {
+		$menu_items = wp_get_nav_menu_items($menu_id);
+		$cleared = 0;
+
+		if ($menu_items) {
+			foreach ($menu_items as $item) {
+				if ($item->menu_item_parent == $parent_item_id) {
+					wp_delete_post($item->ID, true);
+					$cleared++;
+				}
+			}
+		}
+
+		return $cleared;
 	}
 
 	/**
