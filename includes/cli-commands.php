@@ -327,6 +327,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 	 * <menu>
 	 * : The menu slug, ID, or name to clear
 	 *
+	 * [--parent-menu-item=<title>]
+	 * : Clear only child items under this menu item (by title)
+	 *
 	 * [--dry-run]
 	 * : Preview what would be deleted without actually deleting
 	 *
@@ -334,6 +337,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 	 *
 	 *     # Clear all items from the 'primary' menu
 	 *     wp vitalseedstore menu clear primary
+	 *
+	 *     # Clear only child items under "Shop" menu item
+	 *     wp vitalseedstore menu clear primary --parent-menu-item="Shop"
 	 *
 	 *     # Preview what would be cleared
 	 *     wp vitalseedstore menu clear primary --dry-run
@@ -343,6 +349,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 	public function clear($args, $assoc_args) {
 		list($menu_identifier) = $args;
 
+		$parent_menu_item_title = isset($assoc_args['parent-menu-item']) ? $assoc_args['parent-menu-item'] : null;
 		$dry_run = isset($assoc_args['dry-run']);
 
 		// Get the menu object
@@ -353,7 +360,17 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
 		WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
 
-		// Get all menu items
+		// Find parent menu item if specified
+		$parent_menu_item_id = 0;
+		if ($parent_menu_item_title) {
+			$parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
+			if (!$parent_menu_item_id) {
+				WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+			}
+			WP_CLI::log("Clearing child items under menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
+		}
+
+		// Get menu items to clear
 		$menu_items = wp_get_nav_menu_items($menu->term_id);
 
 		if (!$menu_items || empty($menu_items)) {
@@ -361,19 +378,45 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 			return;
 		}
 
-		$item_count = count($menu_items);
+		// Filter items if parent menu item is specified
+		if ($parent_menu_item_id) {
+			$items_to_delete = array_filter($menu_items, function($item) use ($parent_menu_item_id) {
+				return $item->menu_item_parent == $parent_menu_item_id;
+			});
+		} else {
+			$items_to_delete = $menu_items;
+		}
+
+		if (empty($items_to_delete)) {
+			$msg = $parent_menu_item_title
+				? "No child items found under '$parent_menu_item_title'."
+				: "Menu '{$menu->name}' is already empty.";
+			WP_CLI::warning($msg);
+			return;
+		}
+
+		$item_count = count($items_to_delete);
 
 		if ($dry_run) {
 			WP_CLI::log("\n[DRY RUN] Would delete the following $item_count menu items:");
-			foreach ($menu_items as $item) {
+			foreach ($items_to_delete as $item) {
 				$parent_indicator = $item->menu_item_parent ? " (child of item #{$item->menu_item_parent})" : "";
 				WP_CLI::log("  - {$item->title} (ID: {$item->ID}){$parent_indicator}");
 			}
 		} else {
-			WP_CLI::confirm("Are you sure you want to delete all $item_count items from '{$menu->name}'?");
+			$confirm_msg = $parent_menu_item_title
+				? "Are you sure you want to delete $item_count child items from '$parent_menu_item_title'?"
+				: "Are you sure you want to delete all $item_count items from '{$menu->name}'?";
 
-			$this->clear_menu_items($menu->term_id);
-			WP_CLI::success("Deleted $item_count items from '{$menu->name}'.");
+			WP_CLI::confirm($confirm_msg);
+
+			if ($parent_menu_item_id) {
+				$cleared = $this->clear_submenu_items($menu->term_id, $parent_menu_item_id);
+				WP_CLI::success("Deleted $cleared child items from '$parent_menu_item_title'.");
+			} else {
+				$this->clear_menu_items($menu->term_id);
+				WP_CLI::success("Deleted $item_count items from '{$menu->name}'.");
+			}
 		}
 	}
 }
