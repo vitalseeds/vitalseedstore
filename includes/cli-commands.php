@@ -318,6 +318,64 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 			}
 		}
 	}
+
+	/**
+	 * Clear all items from a menu
+	 *
+	 * ## OPTIONS
+	 *
+	 * <menu>
+	 * : The menu slug, ID, or name to clear
+	 *
+	 * [--dry-run]
+	 * : Preview what would be deleted without actually deleting
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Clear all items from the 'primary' menu
+	 *     wp vitalseedstore menu clear primary
+	 *
+	 *     # Preview what would be cleared
+	 *     wp vitalseedstore menu clear primary --dry-run
+	 *
+	 * @when after_wp_load
+	 */
+	public function clear($args, $assoc_args) {
+		list($menu_identifier) = $args;
+
+		$dry_run = isset($assoc_args['dry-run']);
+
+		// Get the menu object
+		$menu = $this->get_menu($menu_identifier);
+		if (!$menu) {
+			WP_CLI::error("Menu '$menu_identifier' not found.");
+		}
+
+		WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
+
+		// Get all menu items
+		$menu_items = wp_get_nav_menu_items($menu->term_id);
+
+		if (!$menu_items || empty($menu_items)) {
+			WP_CLI::warning("Menu '{$menu->name}' is already empty.");
+			return;
+		}
+
+		$item_count = count($menu_items);
+
+		if ($dry_run) {
+			WP_CLI::log("\n[DRY RUN] Would delete the following $item_count menu items:");
+			foreach ($menu_items as $item) {
+				$parent_indicator = $item->menu_item_parent ? " (child of item #{$item->menu_item_parent})" : "";
+				WP_CLI::log("  - {$item->title} (ID: {$item->ID}){$parent_indicator}");
+			}
+		} else {
+			WP_CLI::confirm("Are you sure you want to delete all $item_count items from '{$menu->name}'?");
+
+			$this->clear_menu_items($menu->term_id);
+			WP_CLI::success("Deleted $item_count items from '{$menu->name}'.");
+		}
+	}
 }
 
 WP_CLI::add_command('vitalseedstore menu', 'Vitalseedstore_Menu_Command');
