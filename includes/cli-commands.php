@@ -298,6 +298,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 	private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0) {
 		$added_count = 0;
 
+		// Debug: Log parent menu item ID on first call
+		if ($position === 0) {
+			WP_CLI::log("DEBUG: Adding categories with parent_menu_item_id = $parent_menu_item_id");
+		}
+
 		foreach ($categories as $category) {
 			$position++;
 
@@ -309,7 +314,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 				'menu-item-type' => 'taxonomy',
 				'menu-item-object' => 'product_cat',
 				'menu-item-object-id' => $category->term_id,
-				'menu-item-parent-id' => $parent_menu_item_id,
+				'menu-item-parent-id' => (int) $parent_menu_item_id,
 				'menu-item-position' => $position,
 			));
 
