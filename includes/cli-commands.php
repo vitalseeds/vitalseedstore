@@ -120,42 +120,22 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         // Clear existing submenu items if requested
         if ($clear_submenu && $parent_menu_item_id) {
-            if (!$dry_run) {
-                $cleared = $this->clear_submenu_items($menu->term_id, $parent_menu_item_id);
-                // Clear WordPress menu cache to ensure fresh data
-                wp_cache_delete($menu->term_id, 'nav_menu_items');
-                clean_post_cache($parent_menu_item_id);
-                // Re-verify parent menu item still exists and get fresh ID
-                $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
-                if (!$parent_menu_item_id) {
-                    WP_CLI::error("Parent menu item '$parent_menu_item_title' was lost after clearing submenu.");
-                }
-                WP_CLI::success("Cleared $cleared existing child items under '$parent_menu_item_title'.");
-            } else {
-                WP_CLI::log("[DRY RUN] Would clear existing child items under '$parent_menu_item_title'.");
-            }
+            $parent_menu_item_id = $this->clear_and_refresh_submenu(
+                $menu->term_id,
+                $parent_menu_item_id,
+                $parent_menu_item_title,
+                $dry_run
+            );
         }
 
-        // Get categories to add
-        $categories = $this->get_categories_tree($parent_category);
-
-        if (empty($categories)) {
-            WP_CLI::warning("No categories found to add to menu.");
-            return;
-        }
-
-        WP_CLI::log(sprintf("Found %d top-level categories to add.", count($categories)));
-
-        if ($dry_run) {
-            WP_CLI::log("\n[DRY RUN] Would add the following menu structure:");
-            if ($parent_menu_item_title) {
-                WP_CLI::log("Under parent menu item: $parent_menu_item_title");
-            }
-            $this->preview_menu_structure($categories);
-        } else {
-            $added = $this->add_categories_to_menu($menu->term_id, $categories, $parent_menu_item_id);
-            WP_CLI::success(sprintf("Added %d menu items to '%s'.", $added, $menu->name));
-        }
+        // Populate menu with categories
+        $this->populate_menu_with_categories(
+            $menu,
+            $parent_category,
+            $parent_menu_item_id,
+            $parent_menu_item_title,
+            $dry_run
+        );
     }
 
     // ========================================================================
@@ -293,6 +273,14 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
     /**
      * Delete a menu item and all its descendants recursively
+     *
+     * Uses depth-first recursive deletion to ensure all descendants are removed
+     * before deleting parent items, preventing orphaned menu items.
+     *
+     * @param int $menu_id The menu term ID
+     * @param int $item_id The menu item ID to delete
+     * @param array|null $menu_items Optional pre-fetched menu items for efficiency
+     * @return int Number of items deleted (including descendants)
      */
     private function delete_menu_item_and_descendants($menu_id, $item_id, $menu_items = null) {
         if ($menu_items === null) {
@@ -313,6 +301,40 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $deleted++;
 
         return $deleted;
+    }
+
+    /**
+     * Clear submenu items and refresh menu cache
+     *
+     * Clears all child items under a parent menu item, then refreshes WordPress
+     * caches and re-verifies the parent menu item still exists.
+     *
+     * @param int $menu_id The menu term ID
+     * @param int $parent_menu_item_id The parent menu item ID
+     * @param string $parent_menu_item_title The parent menu item title (for re-verification)
+     * @param bool $dry_run Whether this is a dry run
+     * @return int The parent menu item ID (refreshed after cache clear)
+     */
+    private function clear_and_refresh_submenu($menu_id, $parent_menu_item_id, $parent_menu_item_title, $dry_run) {
+        if (!$dry_run) {
+            $cleared = $this->clear_submenu_items($menu_id, $parent_menu_item_id);
+
+            // Clear WordPress menu cache to ensure fresh data
+            wp_cache_delete($menu_id, 'nav_menu_items');
+            clean_post_cache($parent_menu_item_id);
+
+            // Re-verify parent menu item still exists and get fresh ID
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu_id, $parent_menu_item_title);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item_title' was lost after clearing submenu.");
+            }
+
+            WP_CLI::success("Cleared $cleared existing child items under '$parent_menu_item_title'.");
+        } else {
+            WP_CLI::log("[DRY RUN] Would clear existing child items under '$parent_menu_item_title'.");
+        }
+
+        return $parent_menu_item_id;
     }
 
     // ========================================================================
@@ -388,6 +410,40 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     // ========================================================================
     // MENU POPULATION METHODS
     // ========================================================================
+
+    /**
+     * Populate menu with product categories
+     *
+     * Gets category tree and adds items to menu, or previews the structure in dry run mode.
+     *
+     * @param object $menu The menu object
+     * @param string|null $parent_category Parent category slug to filter by
+     * @param int $parent_menu_item_id Parent menu item ID to nest under
+     * @param string|null $parent_menu_item_title Parent menu item title (for display)
+     * @param bool $dry_run Whether this is a dry run
+     */
+    private function populate_menu_with_categories($menu, $parent_category, $parent_menu_item_id, $parent_menu_item_title, $dry_run) {
+        // Get categories to add
+        $categories = $this->get_categories_tree($parent_category);
+
+        if (empty($categories)) {
+            WP_CLI::warning("No categories found to add to menu.");
+            return;
+        }
+
+        WP_CLI::log(sprintf("Found %d top-level categories to add.", count($categories)));
+
+        if ($dry_run) {
+            WP_CLI::log("\n[DRY RUN] Would add the following menu structure:");
+            if ($parent_menu_item_title) {
+                WP_CLI::log("Under parent menu item: $parent_menu_item_title");
+            }
+            $this->preview_menu_structure($categories);
+        } else {
+            $added = $this->add_categories_to_menu($menu->term_id, $categories, $parent_menu_item_id);
+            WP_CLI::success(sprintf("Added %d menu items to '%s'.", $added, $menu->name));
+        }
+    }
 
     /**
      * Add categories to menu recursively
