@@ -237,22 +237,52 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     }
 
     /**
-     * Clear all child items under a specific parent menu item
+     * Clear all child items under a specific parent menu item (recursively)
      */
     private function clear_submenu_items($menu_id, $parent_item_id) {
         $menu_items = wp_get_nav_menu_items($menu_id);
         $cleared = 0;
 
         if ($menu_items) {
+            // Find all direct children of the parent
+            $children_to_delete = array();
             foreach ($menu_items as $item) {
                 if ($item->menu_item_parent == $parent_item_id) {
-                    wp_delete_post($item->ID, true);
-                    $cleared++;
+                    $children_to_delete[] = $item->ID;
                 }
+            }
+
+            // Recursively delete each child and their descendants
+            foreach ($children_to_delete as $child_id) {
+                $cleared += $this->delete_menu_item_and_descendants($menu_id, $child_id, $menu_items);
             }
         }
 
         return $cleared;
+    }
+
+    /**
+     * Delete a menu item and all its descendants recursively
+     */
+    private function delete_menu_item_and_descendants($menu_id, $item_id, $menu_items = null) {
+        if ($menu_items === null) {
+            $menu_items = wp_get_nav_menu_items($menu_id);
+        }
+
+        $deleted = 0;
+
+        // First, recursively delete all children
+        foreach ($menu_items as $item) {
+            if ($item->menu_item_parent == $item_id) {
+                $deleted += $this->delete_menu_item_and_descendants($menu_id, $item->ID, $menu_items);
+            }
+        }
+
+        // Then delete this item
+        wp_delete_post($item_id, true);
+        $deleted++;
+
+        return $deleted;
     }
 
     /**
