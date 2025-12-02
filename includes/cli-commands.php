@@ -30,6 +30,10 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *     # Clear only submenu items without confirmation (non-interactive)
  *     $ wp vitalseedstore menu clear primary --parent-menu-item="Shop" --yes
  *
+ *     # Remove suffix from all submenu items
+ *     $ wp vitalseedstore menu remove_suffix primary "Shop" " - Organic"
+ *     $ wp vitalseedstore menu remove_suffix primary "Shop" " Seeds"
+ *
  *     # Preview changes without modifying
  *     $ wp vitalseedstore menu populate primary --dry-run
  */
@@ -608,6 +612,209 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 WP_CLI::success("Deleted $item_count items from '{$menu->name}'.");
             }
         }
+    }
+
+    // ========================================================================
+    // REMOVE SUFFIX COMMAND
+    // ========================================================================
+
+    /**
+     * Remove a suffix from all submenu items under a parent menu item
+     *
+     * ## OPTIONS
+     *
+     * <menu>
+     * : The menu slug, ID, or name
+     *
+     * <parent-menu-item>
+     * : The parent menu item title
+     *
+     * <suffix>
+     * : The suffix to remove from menu item titles
+     *
+     * [--dry-run]
+     * : Preview what would be changed without actually modifying
+     *
+     * [--yes]
+     * : Skip confirmation prompt and proceed with changes
+     *
+     * ## EXAMPLES
+     *
+     *     # Remove " - Organic" suffix from all items under "Shop"
+     *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic"
+     *
+     *     # Preview changes without modifying
+     *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic" --dry-run
+     *
+     *     # Remove suffix without confirmation (non-interactive)
+     *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic" --yes
+     *
+     * @when after_wp_load
+     */
+    public function remove_suffix($args, $assoc_args) {
+        list($menu_identifier, $parent_menu_item_title, $suffix) = $args;
+
+        $dry_run = isset($assoc_args['dry-run']);
+        $skip_confirm = isset($assoc_args['yes']);
+
+        // Get the menu object
+        $menu = $this->get_menu($menu_identifier);
+        if (!$menu) {
+            WP_CLI::error("Menu '$menu_identifier' not found.");
+        }
+
+        WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
+
+        // Find parent menu item
+        $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
+        if (!$parent_menu_item_id) {
+            WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+        }
+
+        WP_CLI::log("Finding all descendant items under: $parent_menu_item_title (ID: $parent_menu_item_id)");
+
+        // Get all descendants recursively
+        $menu_items = wp_get_nav_menu_items($menu->term_id);
+        if (!$menu_items || empty($menu_items)) {
+            WP_CLI::warning("Menu '{$menu->name}' is empty.");
+            return;
+        }
+
+        $descendants = $this->get_menu_item_descendants($parent_menu_item_id, $menu_items);
+
+        if (empty($descendants)) {
+            WP_CLI::warning("No submenu items found under '$parent_menu_item_title'.");
+            return;
+        }
+
+        WP_CLI::log(sprintf("Found %d descendant items.", count($descendants)));
+
+        // Filter items that have the suffix (exclude parent menu item itself)
+        $items_to_update = array();
+        foreach ($descendants as $item) {
+            // Safety check: never modify the parent menu item itself
+            if ($item->ID == $parent_menu_item_id) {
+                continue;
+            }
+            if ($this->string_ends_with($item->title, $suffix)) {
+                $items_to_update[] = $item;
+            }
+        }
+
+        if (empty($items_to_update)) {
+            WP_CLI::warning("No items found with suffix '$suffix' under '$parent_menu_item_title'.");
+            return;
+        }
+
+        $update_count = count($items_to_update);
+        WP_CLI::log(sprintf("Found %d items with suffix '%s'.", $update_count, $suffix));
+
+        if ($dry_run) {
+            WP_CLI::log("\n[DRY RUN] Would update the following $update_count menu items:");
+            foreach ($items_to_update as $item) {
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix);
+                WP_CLI::log(sprintf("  - '%s' → '%s' (ID: %d)", $item->title, $new_title, $item->ID));
+            }
+        } else {
+            $confirm_msg = sprintf(
+                "Are you sure you want to remove suffix '%s' from %d items under '%s'?",
+                $suffix,
+                $update_count,
+                $parent_menu_item_title
+            );
+
+            if (!$skip_confirm) {
+                WP_CLI::confirm($confirm_msg);
+            }
+
+            // Update each item
+            $updated = 0;
+            foreach ($items_to_update as $item) {
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix);
+
+                // Preserve all existing menu item properties
+                $result = wp_update_nav_menu_item($menu->term_id, $item->ID, array(
+                    'menu-item-title' => $new_title,
+                    'menu-item-url' => $item->url,
+                    'menu-item-status' => 'publish',
+                    'menu-item-type' => $item->type,
+                    'menu-item-object' => $item->object,
+                    'menu-item-object-id' => $item->object_id,
+                    'menu-item-parent-id' => (int) $item->menu_item_parent,
+                    'menu-item-position' => $item->menu_order,
+                    'menu-item-classes' => implode(' ', $item->classes),
+                    'menu-item-xfn' => $item->xfn,
+                    'menu-item-description' => $item->description,
+                    'menu-item-attr-title' => $item->attr_title,
+                    'menu-item-target' => $item->target,
+                ));
+
+                if (is_wp_error($result)) {
+                    WP_CLI::warning(sprintf("Failed to update item '%s' (ID: %d): %s", $item->title, $item->ID, $result->get_error_message()));
+                } else {
+                    $updated++;
+                    WP_CLI::log(sprintf("Updated: '%s' → '%s'", $item->title, $new_title));
+                }
+            }
+
+            WP_CLI::success(sprintf("Updated %d of %d items.", $updated, $update_count));
+        }
+    }
+
+    // ========================================================================
+    // HELPER METHODS FOR REMOVE SUFFIX
+    // ========================================================================
+
+    /**
+     * Get all descendant menu items recursively
+     *
+     * @param int $parent_id The parent menu item ID
+     * @param array $all_items All menu items
+     * @return array Array of descendant menu items
+     */
+    private function get_menu_item_descendants($parent_id, $all_items) {
+        $descendants = array();
+
+        // Find direct children
+        foreach ($all_items as $item) {
+            if ($item->menu_item_parent == $parent_id) {
+                $descendants[] = $item;
+                // Recursively get children of this child
+                $children = $this->get_menu_item_descendants($item->ID, $all_items);
+                $descendants = array_merge($descendants, $children);
+            }
+        }
+
+        return $descendants;
+    }
+
+    /**
+     * Check if a string ends with a suffix
+     *
+     * @param string $string The string to check
+     * @param string $suffix The suffix to check for
+     * @return bool True if string ends with suffix
+     */
+    private function string_ends_with($string, $suffix) {
+        $length = strlen($suffix);
+        if ($length == 0) {
+            return true;
+        }
+        return (substr($string, -$length) === $suffix);
+    }
+
+    /**
+     * Remove suffix from a string
+     *
+     * @param string $string The string to modify
+     * @param string $suffix The suffix to remove
+     * @return string The string without the suffix
+     */
+    private function remove_suffix_from_string($string, $suffix) {
+        if ($this->string_ends_with($string, $suffix)) {
+            return substr($string, 0, -strlen($suffix));
+        }
+        return $string;
     }
 }
 
