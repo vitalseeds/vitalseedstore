@@ -9,6 +9,30 @@ if (!defined('WP_CLI') || !WP_CLI) {
 
 /**
  * Manage navigation menus with category links
+ *
+ * ## EXAMPLES
+ *
+ *     # Populate menu with all product categories
+ *     $ wp vitalseedstore menu populate primary
+ *
+ *     # Populate menu with categories under a parent
+ *     $ wp vitalseedstore menu populate primary --parent-category=seeds
+ *
+ *     # Add categories under an existing menu item
+ *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds
+ *
+ *     # Clear and repopulate submenu items
+ *     $ wp vitalseedstore menu populate pri
+ * mary --parent-menu-item="Shop" --clear-submenu
+ *
+ *     # Clear entire menu
+ *     $ wp vitalseedstore menu clear primary
+ *
+ *     # Clear only submenu items
+ *     $ wp vitalseedstore menu clear primary --parent-menu-item="Shop"
+ *
+ *     # Preview changes without modifying
+ *     $ wp vitalseedstore menu populate primary --dry-run
  */
 class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
