@@ -141,6 +141,14 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         if ($clear_submenu && $parent_menu_item_id) {
             if (!$dry_run) {
                 $cleared = $this->clear_submenu_items($menu->term_id, $parent_menu_item_id);
+                // Clear WordPress menu cache to ensure fresh data
+                wp_cache_delete($menu->term_id, 'nav_menu_items');
+                clean_post_cache($parent_menu_item_id);
+                // Re-verify parent menu item still exists and get fresh ID
+                $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
+                if (!$parent_menu_item_id) {
+                    WP_CLI::error("Parent menu item '$parent_menu_item_title' was lost after clearing submenu.");
+                }
                 WP_CLI::success("Cleared $cleared existing child items under '$parent_menu_item_title'.");
             } else {
                 WP_CLI::log("[DRY RUN] Would clear existing child items under '$parent_menu_item_title'.");
