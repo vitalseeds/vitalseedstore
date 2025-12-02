@@ -106,6 +106,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $parent_menu_item_title = isset($assoc_args['parent-menu-item']) ? $assoc_args['parent-menu-item'] : null;
         $clear = isset($assoc_args['clear']);
         $clear_submenu = isset($assoc_args['clear-submenu']);
+        $clear_all = isset($assoc_args['clear-all']);
         $dry_run = isset($assoc_args['dry-run']);
 
         // Get the menu object
@@ -131,14 +132,34 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             WP_CLI::log("[DRY RUN] Would clear existing menu items.");
         }
 
+        // Get categories that will be added
+        $categories = $this->get_categories_tree($parent_category);
+
+        if (empty($categories)) {
+            WP_CLI::warning("No categories found to add to menu.");
+            return;
+        }
+
         // Clear existing submenu items if requested
-        if ($clear_submenu && $parent_menu_item_id) {
-            $parent_menu_item_id = $this->clear_and_refresh_submenu(
-                $menu->term_id,
-                $parent_menu_item_id,
-                $parent_menu_item_title,
-                $dry_run
-            );
+        if (($clear_submenu || $clear_all) && $parent_menu_item_id) {
+            if ($clear_all) {
+                // Clear all submenu items
+                $parent_menu_item_id = $this->clear_and_refresh_submenu(
+                    $menu->term_id,
+                    $parent_menu_item_id,
+                    $parent_menu_item_title,
+                    $dry_run
+                );
+            } elseif ($clear_submenu) {
+                // Smart clear - only remove category items that will be replaced
+                $parent_menu_item_id = $this->clear_matching_categories_from_submenu(
+                    $menu->term_id,
+                    $parent_menu_item_id,
+                    $parent_menu_item_title,
+                    $categories,
+                    $dry_run
+                );
+            }
         }
 
         // Populate menu with categories
@@ -314,6 +335,150 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $deleted++;
 
         return $deleted;
+    }
+
+    /**
+     * Clear only category menu items that match the categories being added
+     *
+     * Smart clearing that only removes menu items pointing to categories that will
+     * be replaced, preserving any custom menu items.
+     *
+     * @param int $menu_id The menu term ID
+     * @param int $parent_menu_item_id The parent menu item ID
+     * @param string $parent_menu_item_title The parent menu item title (for re-verification)
+     * @param array $categories Category tree that will be added
+     * @param bool $dry_run Whether this is a dry run
+     * @return int The parent menu item ID (refreshed after cache clear)
+     */
+    private function clear_matching_categories_from_submenu($menu_id, $parent_menu_item_id, $parent_menu_item_title, $categories, $dry_run) {
+        // Extract all category IDs from the tree recursively
+        $category_ids = $this->extract_category_ids($categories);
+
+        $menu_items = wp_get_nav_menu_items($menu_id);
+        $cleared = 0;
+
+        if ($menu_items) {
+            // Find all direct children of the parent
+            $children_to_check = array();
+            foreach ($menu_items as $item) {
+                if ($item->menu_item_parent == $parent_menu_item_id) {
+                    $children_to_check[] = $item->ID;
+                }
+            }
+
+            // Check each child and delete if it's a category item that will be replaced
+            foreach ($children_to_check as $child_id) {
+                $cleared += $this->delete_if_matching_category($menu_id, $child_id, $category_ids, $menu_items, $dry_run);
+            }
+        }
+
+        if (!$dry_run) {
+            // Clear WordPress menu cache to ensure fresh data
+            wp_cache_delete($menu_id, 'nav_menu_items');
+            clean_post_cache($parent_menu_item_id);
+
+            // Re-verify parent menu item still exists and get fresh ID
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu_id, $parent_menu_item_title);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item_title' was lost after clearing submenu.");
+            }
+
+            WP_CLI::success("Cleared $cleared category items under '$parent_menu_item_title' (preserved non-category items).");
+        } else {
+            WP_CLI::log("[DRY RUN] Would clear $cleared category items under '$parent_menu_item_title' (preserving non-category items).");
+        }
+
+        return $parent_menu_item_id;
+    }
+
+    /**
+     * Extract all category IDs from a category tree recursively
+     *
+     * @param array $categories Category tree
+     * @return array Array of category IDs
+     */
+    private function extract_category_ids($categories) {
+        $ids = array();
+        foreach ($categories as $category) {
+            $ids[] = $category->term_id;
+            if (!empty($category->children)) {
+                $ids = array_merge($ids, $this->extract_category_ids($category->children));
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * Delete a menu item if it's a category item matching one of the target categories
+     *
+     * Also recursively deletes children if the parent is deleted.
+     *
+     * @param int $menu_id The menu term ID
+     * @param int $item_id The menu item ID to check
+     * @param array $category_ids Array of category IDs that will be replaced
+     * @param array $menu_items All menu items
+     * @param bool $dry_run Whether this is a dry run
+     * @return int Number of items deleted
+     */
+    private function delete_if_matching_category($menu_id, $item_id, $category_ids, $menu_items, $dry_run) {
+        $deleted = 0;
+
+        // Find the item
+        $item = null;
+        foreach ($menu_items as $menu_item) {
+            if ($menu_item->ID == $item_id) {
+                $item = $menu_item;
+                break;
+            }
+        }
+
+        if (!$item) {
+            return 0;
+        }
+
+        // Check if this is a category item that matches our target categories
+        $is_matching_category = (
+            $item->type === 'taxonomy' &&
+            $item->object === 'product_cat' &&
+            in_array($item->object_id, $category_ids)
+        );
+
+        if ($is_matching_category) {
+            // Delete this item and all its descendants
+            if (!$dry_run) {
+                $deleted = $this->delete_menu_item_and_descendants($menu_id, $item_id, $menu_items);
+            } else {
+                // Count what would be deleted for dry run
+                $deleted = $this->count_descendants($item_id, $menu_items) + 1;
+            }
+        } else {
+            // Not a matching category, but check children
+            foreach ($menu_items as $potential_child) {
+                if ($potential_child->menu_item_parent == $item_id) {
+                    $deleted += $this->delete_if_matching_category($menu_id, $potential_child->ID, $category_ids, $menu_items, $dry_run);
+                }
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Count descendants of a menu item
+     *
+     * @param int $item_id The menu item ID
+     * @param array $menu_items All menu items
+     * @return int Number of descendants
+     */
+    private function count_descendants($item_id, $menu_items) {
+        $count = 0;
+        foreach ($menu_items as $item) {
+            if ($item->menu_item_parent == $item_id) {
+                $count++;
+                $count += $this->count_descendants($item->ID, $menu_items);
+            }
+        }
+        return $count;
     }
 
     /**
