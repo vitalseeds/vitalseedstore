@@ -103,31 +103,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
 
-        // Find parent menu item if specified
-        $parent_menu_item_id = 0;
-        if ($parent_menu_item_title) {
-            $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
-            if (!$parent_menu_item_id) {
-            // Create the parent menu item if it does not exist
-            if (!$dry_run) {
-                $parent_menu_item_id = wp_update_nav_menu_item($menu->term_id, 0, array(
-                    'menu-item-title' => $parent_menu_item_title,
-                    'menu-item-url' => '#',
-                    'menu-item-status' => 'publish',
-                    'menu-item-type' => 'custom',
-                ));
-                if (is_wp_error($parent_menu_item_id)) {
-                    WP_CLI::error("Failed to create parent menu item '" . $parent_menu_item_title . "'  : " . $parent_menu_item_id->get_error_message());
-                }
-                WP_CLI::success("Created parent menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
-            } else {
-                WP_CLI::log("[DRY RUN] Would create parent menu item: $parent_menu_item_title");
-                // Use a placeholder ID for dry run
-                $parent_menu_item_id = 999999;
-            }
-            }
-            WP_CLI::log("Adding categories under menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
-        }
+        // Find or create parent menu item if specified
+        $parent_menu_item_id = $this->setup_parent_menu_item(
+            $menu->term_id,
+            $parent_menu_item_title,
+            $dry_run
+        );
 
         // Clear existing menu items if requested
         if ($clear && !$dry_run) {
@@ -177,6 +158,51 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         }
     }
 
+    // ========================================================================
+    // MENU SETUP & LOOKUP METHODS
+    // ========================================================================
+
+    /**
+     * Find or create a parent menu item for organizing categories
+     *
+     * @param int $menu_id The menu term ID
+     * @param string|null $parent_title Title of the parent menu item
+     * @param bool $dry_run Whether this is a dry run
+     * @return int Parent menu item ID (0 if no parent specified)
+     */
+    private function setup_parent_menu_item($menu_id, $parent_title, $dry_run) {
+        if (!$parent_title) {
+            return 0;
+        }
+
+        // Try to find existing parent menu item
+        $parent_id = $this->find_menu_item_by_title($menu_id, $parent_title);
+
+        if (!$parent_id) {
+            // Create the parent menu item if it doesn't exist
+            if (!$dry_run) {
+                $parent_id = wp_update_nav_menu_item($menu_id, 0, array(
+                    'menu-item-title' => $parent_title,
+                    'menu-item-url' => '#',
+                    'menu-item-status' => 'publish',
+                    'menu-item-type' => 'custom',
+                ));
+
+                if (is_wp_error($parent_id)) {
+                    WP_CLI::error("Failed to create parent menu item '$parent_title': " . $parent_id->get_error_message());
+                }
+
+                WP_CLI::success("Created parent menu item: $parent_title (ID: $parent_id)");
+            } else {
+                WP_CLI::log("[DRY RUN] Would create parent menu item: $parent_title");
+                $parent_id = 999999; // Placeholder for dry run
+            }
+        }
+
+        WP_CLI::log("Adding categories under menu item: $parent_title (ID: $parent_id)");
+        return $parent_id;
+    }
+
     /**
      * Get menu object by slug, ID, or name
      */
@@ -223,6 +249,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         return false;
     }
+
+    // ========================================================================
+    // MENU ITEM DELETION METHODS
+    // ========================================================================
 
     /**
      * Clear all items from a menu
@@ -284,6 +314,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         return $deleted;
     }
+
+    // ========================================================================
+    // CATEGORY TREE BUILDING METHODS
+    // ========================================================================
 
     /**
      * Get hierarchical tree of product categories
@@ -351,6 +385,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         return $children;
     }
 
+    // ========================================================================
+    // MENU POPULATION METHODS
+    // ========================================================================
+
     /**
      * Add categories to menu recursively
      */
@@ -401,6 +439,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             }
         }
     }
+
+    // ========================================================================
+    // CLEAR COMMAND
+    // ========================================================================
 
     /**
      * Clear all items from a menu
