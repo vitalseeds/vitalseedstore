@@ -22,14 +22,13 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds
  *
  *     # Clear and repopulate submenu items
- *     $ wp vitalseedstore menu populate pri
- * mary --parent-menu-item="Shop" --clear-submenu
+ *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --clear-submenu
  *
- *     # Clear entire menu
+ *     # Clear entire menu (with confirmation)
  *     $ wp vitalseedstore menu clear primary
  *
- *     # Clear only submenu items
- *     $ wp vitalseedstore menu clear primary --parent-menu-item="Shop"
+ *     # Clear only submenu items without confirmation (non-interactive)
+ *     $ wp vitalseedstore menu clear primary --parent-menu-item="Shop" --yes
  *
  *     # Preview changes without modifying
  *     $ wp vitalseedstore menu populate primary --dry-run
@@ -59,6 +58,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * [--dry-run]
      * : Preview changes without actually modifying the menu
      *
+     * [--yes]
+     * : Skip confirmation prompts and proceed with the operation
+     *
      * ## EXAMPLES
      *
      *     # Populate the 'primary' menu with all product categories
@@ -78,6 +80,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *
      *     # Preview changes without modifying
      *     wp vitalseedstore menu populate primary --dry-run
+     *
+     *     # Populate in non-interactive mode (skip confirmations)
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --clear-submenu --yes
      *
      * @when after_wp_load
      */
@@ -103,7 +108,23 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         if ($parent_menu_item_title) {
             $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
             if (!$parent_menu_item_id) {
-                WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+            // Create the parent menu item if it does not exist
+            if (!$dry_run) {
+                $parent_menu_item_id = wp_update_nav_menu_item($menu->term_id, 0, array(
+                    'menu-item-title' => $parent_menu_item_title,
+                    'menu-item-url' => '#',
+                    'menu-item-status' => 'publish',
+                    'menu-item-type' => 'custom',
+                ));
+                if (is_wp_error($parent_menu_item_id)) {
+                    WP_CLI::error("Failed to create parent menu item '" . $parent_menu_item_title . "'  : " . $parent_menu_item_id->get_error_message());
+                }
+                WP_CLI::success("Created parent menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
+            } else {
+                WP_CLI::log("[DRY RUN] Would create parent menu item: $parent_menu_item_title");
+                // Use a placeholder ID for dry run
+                $parent_menu_item_id = 999999;
+            }
             }
             WP_CLI::log("Adding categories under menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
         }
@@ -298,11 +319,6 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0) {
         $added_count = 0;
 
-        // Debug: Log parent menu item ID on first call
-        if ($position === 0) {
-            WP_CLI::log("DEBUG: Adding categories with parent_menu_item_id = $parent_menu_item_id");
-        }
-
         foreach ($categories as $category) {
             $position++;
 
@@ -362,6 +378,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * [--dry-run]
      * : Preview what would be deleted without actually deleting
      *
+     * [--yes]
+     * : Skip confirmation prompt and proceed with deletion
+     *
      * ## EXAMPLES
      *
      *     # Clear all items from the 'primary' menu
@@ -373,6 +392,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # Preview what would be cleared
      *     wp vitalseedstore menu clear primary --dry-run
      *
+     *     # Clear without confirmation prompt (non-interactive)
+     *     wp vitalseedstore menu clear primary --yes
+     *
      * @when after_wp_load
      */
     public function clear($args, $assoc_args) {
@@ -380,6 +402,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         $parent_menu_item_title = isset($assoc_args['parent-menu-item']) ? $assoc_args['parent-menu-item'] : null;
         $dry_run = isset($assoc_args['dry-run']);
+        $skip_confirm = isset($assoc_args['yes']);
 
         // Get the menu object
         $menu = $this->get_menu($menu_identifier);
@@ -437,7 +460,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 ? "Are you sure you want to delete $item_count child items from '$parent_menu_item_title'?"
                 : "Are you sure you want to delete all $item_count items from '{$menu->name}'?";
 
-            WP_CLI::confirm($confirm_msg);
+            if (!$skip_confirm) {
+                WP_CLI::confirm($confirm_msg);
+            }
 
             if ($parent_menu_item_id) {
                 $cleared = $this->clear_submenu_items($menu->term_id, $parent_menu_item_id);
