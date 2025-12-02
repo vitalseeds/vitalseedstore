@@ -632,6 +632,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * <suffix>
      * : The suffix to remove from menu item titles
      *
+     * [--case-insensitive]
+     * : Perform case-insensitive suffix matching
+     *
      * [--dry-run]
      * : Preview what would be changed without actually modifying
      *
@@ -642,6 +645,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *
      *     # Remove " - Organic" suffix from all items under "Shop"
      *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic"
+     *
+     *     # Remove suffix case-insensitively (matches " - ORGANIC", " - organic", etc.)
+     *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic" --case-insensitive
      *
      *     # Preview changes without modifying
      *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic" --dry-run
@@ -656,6 +662,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         $dry_run = isset($assoc_args['dry-run']);
         $skip_confirm = isset($assoc_args['yes']);
+        $case_insensitive = isset($assoc_args['case-insensitive']);
 
         // Get the menu object
         $menu = $this->get_menu($menu_identifier);
@@ -696,7 +703,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             if ($item->ID == $parent_menu_item_id) {
                 continue;
             }
-            if ($this->string_ends_with($item->title, $suffix)) {
+            if ($this->string_ends_with($item->title, $suffix, $case_insensitive)) {
                 $items_to_update[] = $item;
             }
         }
@@ -712,15 +719,16 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         if ($dry_run) {
             WP_CLI::log("\n[DRY RUN] Would update the following $update_count menu items:");
             foreach ($items_to_update as $item) {
-                $new_title = $this->remove_suffix_from_string($item->title, $suffix);
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix, $case_insensitive);
                 WP_CLI::log(sprintf("  - '%s' → '%s' (ID: %d)", $item->title, $new_title, $item->ID));
             }
         } else {
             $confirm_msg = sprintf(
-                "Are you sure you want to remove suffix '%s' from %d items under '%s'?",
+                "Are you sure you want to remove suffix '%s' from %d items under '%s'?%s",
                 $suffix,
                 $update_count,
-                $parent_menu_item_title
+                $parent_menu_item_title,
+                $case_insensitive ? ' (case-insensitive)' : ''
             );
 
             if (!$skip_confirm) {
@@ -730,7 +738,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             // Update each item
             $updated = 0;
             foreach ($items_to_update as $item) {
-                $new_title = $this->remove_suffix_from_string($item->title, $suffix);
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix, $case_insensitive);
 
                 // Preserve all existing menu item properties
                 $result = wp_update_nav_menu_item($menu->term_id, $item->ID, array(
@@ -793,14 +801,22 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *
      * @param string $string The string to check
      * @param string $suffix The suffix to check for
+     * @param bool $case_insensitive Whether to perform case-insensitive comparison
      * @return bool True if string ends with suffix
      */
-    private function string_ends_with($string, $suffix) {
+    private function string_ends_with($string, $suffix, $case_insensitive = false) {
         $length = strlen($suffix);
         if ($length == 0) {
             return true;
         }
-        return (substr($string, -$length) === $suffix);
+
+        $string_end = substr($string, -$length);
+
+        if ($case_insensitive) {
+            return strcasecmp($string_end, $suffix) === 0;
+        }
+
+        return $string_end === $suffix;
     }
 
     /**
@@ -808,10 +824,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *
      * @param string $string The string to modify
      * @param string $suffix The suffix to remove
+     * @param bool $case_insensitive Whether to perform case-insensitive matching
      * @return string The string without the suffix
      */
-    private function remove_suffix_from_string($string, $suffix) {
-        if ($this->string_ends_with($string, $suffix)) {
+    private function remove_suffix_from_string($string, $suffix, $case_insensitive = false) {
+        if ($this->string_ends_with($string, $suffix, $case_insensitive)) {
             return substr($string, 0, -strlen($suffix));
         }
         return $string;
