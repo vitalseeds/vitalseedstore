@@ -34,6 +34,9 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *     $ wp vitalseedstore menu remove_suffix primary "Shop" " - Organic"
  *     $ wp vitalseedstore menu remove_suffix primary "Shop" " Seeds"
  *
+ *     # Strip parent category names from submenu items
+ *     $ wp vitalseedstore menu strip_categories primary "Shop"
+ *
  *     # Preview changes without modifying
  *     $ wp vitalseedstore menu populate primary --dry-run
  */
@@ -57,7 +60,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * : Clear existing menu items before adding new ones
      *
      * [--clear-submenu]
-     * : Clear existing child items under the parent menu item before adding new ones
+     * : Clear only category items that will be replaced (smart clearing)
+     *
+     * [--clear-all]
+     * : Clear all child items under the parent menu item before adding new ones
      *
      * [--dry-run]
      * : Preview changes without actually modifying the menu
@@ -76,8 +82,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # Add categories under an existing "Shop" menu item
      *     wp vitalseedstore menu populate primary --parent-menu-item="Shop"
      *
-     *     # Clear existing child items under "Shop" and repopulate
+     *     # Smart clear - only remove category items that will be replaced
      *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --clear-submenu
+     *
+     *     # Clear all child items under "Shop" and repopulate
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --clear-all
      *
      *     # Clear existing items and populate with categories
      *     wp vitalseedstore menu populate primary --clear
@@ -770,6 +779,188 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     }
 
     // ========================================================================
+    // STRIP CATEGORIES COMMAND
+    // ========================================================================
+
+    /**
+     * Strip parent category names from all submenu items recursively
+     *
+     * Loops through all submenu items and removes their direct parent's title
+     * from the end of their title (case-insensitive). Also handles plural/singular
+     * variations automatically. For example, if "Beans" has children "Black Beans",
+     * "Red Bean", they become "Black" and "Red". Works with "Seeds"/"Seed",
+     * "Berries"/"Berry", etc.
+     *
+     * ## OPTIONS
+     *
+     * <menu>
+     * : The menu slug, ID, or name
+     *
+     * <parent-menu-item>
+     * : The parent menu item title to start from
+     *
+     * [--dry-run]
+     * : Preview what would be changed without actually modifying
+     *
+     * [--yes]
+     * : Skip confirmation prompt and proceed with changes
+     *
+     * ## EXAMPLES
+     *
+     *     # Strip category names from all submenu items
+     *     # (handles both "Black Beans" and "Red Bean" under "Beans" parent)
+     *     wp vitalseedstore menu strip_categories primary "Shop"
+     *
+     *     # Preview changes without modifying
+     *     wp vitalseedstore menu strip_categories primary "Shop" --dry-run
+     *
+     *     # Strip without confirmation (non-interactive)
+     *     wp vitalseedstore menu strip_categories primary "Shop" --yes
+     *
+     * @when after_wp_load
+     */
+    public function strip_categories($args, $assoc_args) {
+        list($menu_identifier, $parent_menu_item_title) = $args;
+
+        $dry_run = isset($assoc_args['dry-run']);
+        $skip_confirm = isset($assoc_args['yes']);
+
+        // Get the menu object
+        $menu = $this->get_menu($menu_identifier);
+        if (!$menu) {
+            WP_CLI::error("Menu '$menu_identifier' not found.");
+        }
+
+        WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
+
+        // Find parent menu item
+        $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
+        if (!$parent_menu_item_id) {
+            WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+        }
+
+        WP_CLI::log("Finding all descendant items under: $parent_menu_item_title (ID: $parent_menu_item_id)");
+
+        // Get all menu items and descendants
+        $menu_items = wp_get_nav_menu_items($menu->term_id);
+        if (!$menu_items || empty($menu_items)) {
+            WP_CLI::warning("Menu '{$menu->name}' is empty.");
+            return;
+        }
+
+        // Create a lookup map for quick parent title retrieval
+        $menu_items_by_id = array();
+        foreach ($menu_items as $item) {
+            $menu_items_by_id[$item->ID] = $item;
+        }
+
+        $descendants = $this->get_menu_item_descendants($parent_menu_item_id, $menu_items);
+
+        if (empty($descendants)) {
+            WP_CLI::warning("No submenu items found under '$parent_menu_item_title'.");
+            return;
+        }
+
+        WP_CLI::log(sprintf("Found %d descendant items.", count($descendants)));
+
+        // Filter items that end with their parent's title or its plural/singular form (case-insensitive)
+        $items_to_update = array();
+        foreach ($descendants as $item) {
+            // Skip if item has no parent or parent not found
+            if (!$item->menu_item_parent || !isset($menu_items_by_id[$item->menu_item_parent])) {
+                continue;
+            }
+
+            $parent_item = $menu_items_by_id[$item->menu_item_parent];
+
+            // Get all variations of the parent title (original, plural, singular)
+            $parent_variations = $this->get_word_variations($parent_item->title);
+
+            // Check if item title ends with any variation of parent title (case-insensitive)
+            $matched_suffix = null;
+            foreach ($parent_variations as $variation) {
+                $test_suffix = ' ' . $variation;
+                if ($this->string_ends_with($item->title, $test_suffix, true)) {
+                    $matched_suffix = $test_suffix;
+                    break;
+                }
+            }
+
+            if ($matched_suffix) {
+                $items_to_update[] = array(
+                    'item' => $item,
+                    'suffix' => $matched_suffix,
+                    'parent_title' => $parent_item->title
+                );
+            }
+        }
+
+        if (empty($items_to_update)) {
+            WP_CLI::warning("No items found that end with their parent's title.");
+            return;
+        }
+
+        $update_count = count($items_to_update);
+        WP_CLI::log(sprintf("Found %d items to strip category names from.", $update_count));
+
+        if ($dry_run) {
+            WP_CLI::log("\n[DRY RUN] Would update the following $update_count menu items:");
+            foreach ($items_to_update as $update_data) {
+                $item = $update_data['item'];
+                $suffix = $update_data['suffix'];
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix, true);
+                WP_CLI::log(sprintf("  - '%s' → '%s' (ID: %d, parent: %s)",
+                    $item->title, $new_title, $item->ID, $update_data['parent_title']));
+            }
+        } else {
+            $confirm_msg = sprintf(
+                "Are you sure you want to strip category names from %d items under '%s'?",
+                $update_count,
+                $parent_menu_item_title
+            );
+
+            if (!$skip_confirm) {
+                WP_CLI::confirm($confirm_msg);
+            }
+
+            // Update each item
+            $updated = 0;
+            foreach ($items_to_update as $update_data) {
+                $item = $update_data['item'];
+                $suffix = $update_data['suffix'];
+                $new_title = $this->remove_suffix_from_string($item->title, $suffix, true);
+
+                // Preserve all existing menu item properties
+                $result = wp_update_nav_menu_item($menu->term_id, $item->ID, array(
+                    'menu-item-title' => $new_title,
+                    'menu-item-url' => $item->url,
+                    'menu-item-status' => 'publish',
+                    'menu-item-type' => $item->type,
+                    'menu-item-object' => $item->object,
+                    'menu-item-object-id' => $item->object_id,
+                    'menu-item-parent-id' => (int) $item->menu_item_parent,
+                    'menu-item-position' => $item->menu_order,
+                    'menu-item-classes' => implode(' ', $item->classes),
+                    'menu-item-xfn' => $item->xfn,
+                    'menu-item-description' => $item->description,
+                    'menu-item-attr-title' => $item->attr_title,
+                    'menu-item-target' => $item->target,
+                ));
+
+                if (is_wp_error($result)) {
+                    WP_CLI::warning(sprintf("Failed to update item '%s' (ID: %d): %s",
+                        $item->title, $item->ID, $result->get_error_message()));
+                } else {
+                    $updated++;
+                    WP_CLI::log(sprintf("Updated: '%s' → '%s'", $item->title, $new_title));
+                }
+            }
+
+            WP_CLI::success(sprintf("Updated %d of %d items.", $updated, $update_count));
+        }
+    }
+
+    // ========================================================================
     // HELPER METHODS FOR REMOVE SUFFIX
     // ========================================================================
 
@@ -794,6 +985,37 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         }
 
         return $descendants;
+    }
+
+    /**
+     * Get plural and singular variations of a word
+     *
+     * @param string $word The word to get variations of
+     * @return array Array of variations (includes original, plural, and singular forms)
+     */
+    private function get_word_variations($word) {
+        $variations = array($word);
+
+        // Generate singular form
+        if (substr($word, -3) === 'ies') {
+            // berries → berry
+            $variations[] = substr($word, 0, -3) . 'y';
+        } elseif (substr($word, -1) === 's') {
+            // beans → bean, seeds → seed
+            $variations[] = substr($word, 0, -1);
+        }
+
+        // Generate plural form
+        if (substr($word, -1) === 'y' && !in_array(substr($word, -2, 1), array('a', 'e', 'i', 'o', 'u'))) {
+            // berry → berries (but not for "key" → "keies")
+            $variations[] = substr($word, 0, -1) . 'ies';
+        } elseif (substr($word, -1) !== 's') {
+            // bean → beans, seed → seeds
+            $variations[] = $word . 's';
+        }
+
+        // Remove duplicates
+        return array_unique($variations);
     }
 
     /**
