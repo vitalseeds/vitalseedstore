@@ -37,6 +37,9 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *     # Strip parent category names from submenu items
  *     $ wp vitalseedstore menu strip_categories primary "Shop"
  *
+ *     # Set Megamenu Pro display modes for menu and submenus
+ *     $ wp vitalseedstore menu populate primary --megamenu-display-mode=megamenu --megamenu-submenu-display-mode=flyout
+ *
  *     # Preview changes without modifying
  *     $ wp vitalseedstore menu populate primary --dry-run
  */
@@ -65,6 +68,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * [--clear-all]
      * : Clear all child items under the parent menu item before adding new ones
      *
+     * [--megamenu-display-mode=<mode>]
+     * : Megamenu Pro display mode: applies to parent-menu-item if specified, otherwise to top-level categories
+     *
+     * [--megamenu-submenu-display-mode=<mode>]
+     * : Megamenu Pro display mode: applies to items under parent-menu-item if specified, otherwise to submenus
+     *
      * [--dry-run]
      * : Preview changes without actually modifying the menu
      *
@@ -91,6 +100,14 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # Clear existing items and populate with categories
      *     wp vitalseedstore menu populate primary --clear
      *
+     *     # Set Megamenu Pro display modes (without parent menu item)
+     *     # Top-level categories get 'megamenu', their children get 'flyout'
+     *     wp vitalseedstore menu populate primary --megamenu-display-mode=megamenu --megamenu-submenu-display-mode=flyout
+     *
+     *     # Set Megamenu Pro display modes (with parent menu item)
+     *     # "Shop" gets 'megamenu', categories under "Shop" get 'flyout'
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --megamenu-display-mode=megamenu --megamenu-submenu-display-mode=flyout
+     *
      *     # Preview changes without modifying
      *     wp vitalseedstore menu populate primary --dry-run
      *
@@ -107,6 +124,8 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $clear = isset($assoc_args['clear']);
         $clear_submenu = isset($assoc_args['clear-submenu']);
         $clear_all = isset($assoc_args['clear-all']);
+        $megamenu_display_mode = isset($assoc_args['megamenu-display-mode']) ? $assoc_args['megamenu-display-mode'] : null;
+        $megamenu_submenu_display_mode = isset($assoc_args['megamenu-submenu-display-mode']) ? $assoc_args['megamenu-submenu-display-mode'] : null;
         $dry_run = isset($assoc_args['dry-run']);
 
         // Get the menu object
@@ -123,6 +142,28 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             $parent_menu_item_title,
             $dry_run
         );
+
+        // If we have a parent menu item, set its megamenu display mode
+        if ($parent_menu_item_id && $megamenu_display_mode && !$dry_run) {
+            // Megamenu Pro uses multiple meta keys for compatibility
+
+            // 1. _megamenu - Main settings array
+            $megamenu_settings = get_post_meta($parent_menu_item_id, '_megamenu', true);
+            if (!is_array($megamenu_settings)) {
+                $megamenu_settings = array();
+            }
+            $megamenu_settings['type'] = $megamenu_display_mode;
+            update_post_meta($parent_menu_item_id, '_megamenu', $megamenu_settings);
+
+            // 2. _megamenu_type - Direct type value
+            update_post_meta($parent_menu_item_id, '_megamenu_type', $megamenu_display_mode);
+
+            // 3. _menu_item_megamenu_settings - Alternative settings array
+            $item_settings = array('type' => $megamenu_display_mode);
+            update_post_meta($parent_menu_item_id, '_menu_item_megamenu_settings', $item_settings);
+
+            WP_CLI::log("Set Megamenu display mode '$megamenu_display_mode' on parent menu item (ID: $parent_menu_item_id).");
+        }
 
         // Clear existing menu items if requested
         if ($clear && !$dry_run) {
@@ -168,6 +209,8 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             $parent_category,
             $parent_menu_item_id,
             $parent_menu_item_title,
+            $megamenu_display_mode,
+            $megamenu_submenu_display_mode,
             $dry_run
         );
     }
@@ -598,9 +641,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @param string|null $parent_category Parent category slug to filter by
      * @param int $parent_menu_item_id Parent menu item ID to nest under
      * @param string|null $parent_menu_item_title Parent menu item title (for display)
+     * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level items
+     * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for first-level submenus
      * @param bool $dry_run Whether this is a dry run
      */
-    private function populate_menu_with_categories($menu, $parent_category, $parent_menu_item_id, $parent_menu_item_title, $dry_run) {
+    private function populate_menu_with_categories($menu, $parent_category, $parent_menu_item_id, $parent_menu_item_title, $megamenu_display_mode, $megamenu_submenu_display_mode, $dry_run) {
         // Get categories to add
         $categories = $this->get_categories_tree($parent_category);
 
@@ -611,22 +656,69 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         WP_CLI::log(sprintf("Found %d top-level categories to add.", count($categories)));
 
+        // When there's a parent menu item, shift the display modes down one level
+        // The parent gets megamenu_display_mode (already set above)
+        // Categories directly under parent get megamenu_submenu_display_mode
+        // Their children get nothing
+        $effective_menu_mode = $parent_menu_item_id ? $megamenu_submenu_display_mode : $megamenu_display_mode;
+        $effective_submenu_mode = $parent_menu_item_id ? null : $megamenu_submenu_display_mode;
+
         if ($dry_run) {
             WP_CLI::log("\n[DRY RUN] Would add the following menu structure:");
             if ($parent_menu_item_title) {
                 WP_CLI::log("Under parent menu item: $parent_menu_item_title");
+                if ($megamenu_display_mode) {
+                    WP_CLI::log("  - Parent menu item would get: $megamenu_display_mode");
+                }
+                if ($megamenu_submenu_display_mode) {
+                    WP_CLI::log("  - Categories under parent would get: $megamenu_submenu_display_mode");
+                }
+            } else {
+                if ($megamenu_display_mode) {
+                    WP_CLI::log("Megamenu display mode (top-level): $megamenu_display_mode");
+                }
+                if ($megamenu_submenu_display_mode) {
+                    WP_CLI::log("Megamenu display mode (submenus): $megamenu_submenu_display_mode");
+                }
             }
             $this->preview_menu_structure($categories);
         } else {
-            $added = $this->add_categories_to_menu($menu->term_id, $categories, $parent_menu_item_id);
+            $added = $this->add_categories_to_menu($menu->term_id, $categories, $parent_menu_item_id, 0, $effective_menu_mode, $effective_submenu_mode, 0);
             WP_CLI::success(sprintf("Added %d menu items to '%s'.", $added, $menu->name));
+
+            if ($parent_menu_item_id) {
+                // When using parent menu item
+                if ($megamenu_display_mode) {
+                    WP_CLI::success(sprintf("Set Megamenu display mode to '%s' for parent menu item.", $megamenu_display_mode));
+                }
+                if ($megamenu_submenu_display_mode) {
+                    WP_CLI::success(sprintf("Set Megamenu display mode to '%s' for categories under parent.", $megamenu_submenu_display_mode));
+                }
+            } else {
+                // When NOT using parent menu item
+                if ($megamenu_display_mode) {
+                    WP_CLI::success(sprintf("Set Megamenu display mode to '%s' for top-level items.", $megamenu_display_mode));
+                }
+                if ($megamenu_submenu_display_mode) {
+                    WP_CLI::success(sprintf("Set Megamenu display mode to '%s' for submenus.", $megamenu_submenu_display_mode));
+                }
+            }
         }
     }
 
     /**
      * Add categories to menu recursively
+     *
+     * @param int $menu_id The menu term ID
+     * @param array $categories Array of category objects
+     * @param int $parent_menu_item_id Parent menu item ID
+     * @param int $position Menu item position
+     * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level
+     * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for submenus
+     * @param int $depth Current depth level (0 = top-level, 1 = submenu, 2+ = deeper)
+     * @return int Number of items added
      */
-    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0) {
+    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0) {
         $added_count = 0;
 
         foreach ($categories as $category) {
@@ -651,9 +743,41 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
             $added_count++;
 
+            // Set Megamenu Pro display mode if specified
+            $mode_to_set = null;
+
+            // Top-level items (depth 0) get the menu display mode
+            if ($depth === 0 && $megamenu_display_mode) {
+                $mode_to_set = $megamenu_display_mode;
+            }
+            // First-level submenus (depth 1) get the submenu display mode
+            elseif ($depth === 1 && $megamenu_submenu_display_mode) {
+                $mode_to_set = $megamenu_submenu_display_mode;
+            }
+
+            // Apply the mode if set (Megamenu Pro uses multiple meta keys)
+            if ($mode_to_set) {
+                // 1. _megamenu - Main settings array
+                $megamenu_settings = get_post_meta($menu_item_id, '_megamenu', true);
+                if (!is_array($megamenu_settings)) {
+                    $megamenu_settings = array();
+                }
+                $megamenu_settings['type'] = $mode_to_set;
+                update_post_meta($menu_item_id, '_megamenu', $megamenu_settings);
+
+                // 2. _megamenu_type - Direct type value
+                update_post_meta($menu_item_id, '_megamenu_type', $mode_to_set);
+
+                // 3. _menu_item_megamenu_settings - Alternative settings array
+                $item_settings = array('type' => $mode_to_set);
+                update_post_meta($menu_item_id, '_menu_item_megamenu_settings', $item_settings);
+
+                WP_CLI::log("  → Set '{$category->name}' (ID: $menu_item_id) type to '$mode_to_set'");
+            }
+
             // Add children recursively
             if (!empty($category->children)) {
-                $added_count += $this->add_categories_to_menu($menu_id, $category->children, $menu_item_id, 0);
+                $added_count += $this->add_categories_to_menu($menu_id, $category->children, $menu_item_id, 0, $megamenu_display_mode, $megamenu_submenu_display_mode, $depth + 1);
             }
         }
 
