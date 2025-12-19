@@ -955,9 +955,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             );
         }
 
-        // Distribute child items across columns
+        // Distribute child items across columns (vertical flow - fill down each column)
+        $total_items = count($child_item_ids);
+        $items_per_column = ceil($total_items / $num_columns);
+
         foreach ($child_item_ids as $index => $item_id) {
-            $col_index = $index % $num_columns;
+            $col_index = floor($index / $items_per_column);
             $columns[$col_index]['items'][] = array(
                 'id' => (string)$item_id,
                 'type' => 'item'
