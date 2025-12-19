@@ -108,6 +108,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # "Shop" gets 'megamenu', categories under "Shop" get 'flyout'
      *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --megamenu-display-mode=megamenu --megamenu-submenu-display-mode=flyout
      *
+     *     # Use grid layout with 4 columns for category submenus
+     *     # "Shop" gets 'tabbed', categories under "Shop" get 'grid' with 4 columns
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --megamenu-display-mode=tabbed --megamenu-submenu-display-mode=grid4 --clear-submenu
+     *
      *     # Preview changes without modifying
      *     wp vitalseedstore menu populate primary --dry-run
      *
@@ -728,10 +732,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level
      * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for submenus
      * @param int $depth Current depth level (0 = top-level, 1 = submenu, 2+ = deeper)
-     * @param int|null $parent_grid_columns Number of grid columns in parent (for distributing items)
      * @return int Number of items added
      */
-    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0, $parent_grid_columns = null) {
+    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0) {
         $added_count = 0;
 
         foreach ($categories as $index => $category) {
@@ -755,22 +758,6 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             }
 
             $added_count++;
-
-            // If parent has grid columns, assign this item to a column
-            if ($parent_grid_columns) {
-                // Distribute items across columns (1-based indexing for Megamenu)
-                $column_number = ($index % $parent_grid_columns) + 1;
-
-                // Set column assignment in _megamenu settings array
-                $megamenu_settings = get_post_meta($menu_item_id, '_megamenu', true);
-                if (!is_array($megamenu_settings)) {
-                    $megamenu_settings = array();
-                }
-                $megamenu_settings['mega_menu_column'] = $column_number;
-                update_post_meta($menu_item_id, '_megamenu', $megamenu_settings);
-
-                WP_CLI::log("  → Assigned '{$category->name}' to column $column_number");
-            }
 
             // Set Megamenu Pro display mode if specified
             $mode_to_set = null;
@@ -819,29 +806,216 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
             // Add children recursively
             if (!empty($category->children)) {
-                // Check if this item has grid columns - if so, we need to distribute children across columns
-                $parent_columns = null;
-                if ($mode_to_set) {
-                    $parsed = $this->parse_display_mode($mode_to_set);
-                    if ($parsed['mode'] === 'grid' && $parsed['columns']) {
-                        $parent_columns = $parsed['columns'];
-                    }
-                }
-
-                $added_count += $this->add_categories_to_menu(
+                // Recursively add child items
+                $child_item_ids = $this->add_categories_to_menu_with_tracking(
                     $menu_id,
                     $category->children,
                     $menu_item_id,
                     0,
                     $megamenu_display_mode,
                     $megamenu_submenu_display_mode,
-                    $depth + 1,
-                    $parent_columns  // Pass column count to distribute children
+                    $depth + 1
                 );
+
+                $added_count += count($child_item_ids);
+
+                // If this item has grid mode, build the grid structure with children
+                if ($mode_to_set) {
+                    $parsed = $this->parse_display_mode($mode_to_set);
+                    if ($parsed['mode'] === 'grid' && $parsed['columns'] && !empty($child_item_ids)) {
+                        $this->build_grid_structure($menu_item_id, $child_item_ids, $parsed['columns']);
+                        WP_CLI::log("  → Built grid structure for '{$category->name}' with " . count($child_item_ids) . " items across {$parsed['columns']} columns");
+                    }
+                }
             }
         }
 
         return $added_count;
+    }
+
+    /**
+     * Add categories to menu recursively and track item IDs
+     *
+     * Similar to add_categories_to_menu but returns array of created menu item IDs
+     *
+     * @param int $menu_id The menu term ID
+     * @param array $categories Array of category objects
+     * @param int $parent_menu_item_id Parent menu item ID
+     * @param int $position Menu item position
+     * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level
+     * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for submenus
+     * @param int $depth Current depth level
+     * @return array Array of menu item IDs
+     */
+    private function add_categories_to_menu_with_tracking($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0) {
+        $item_ids = array();
+
+        foreach ($categories as $category) {
+            $position++;
+
+            // Add the category to the menu
+            $menu_item_id = wp_update_nav_menu_item($menu_id, 0, array(
+                'menu-item-title' => $category->name,
+                'menu-item-url' => get_term_link($category),
+                'menu-item-status' => 'publish',
+                'menu-item-type' => 'taxonomy',
+                'menu-item-object' => 'product_cat',
+                'menu-item-object-id' => $category->term_id,
+                'menu-item-parent-id' => (int) $parent_menu_item_id,
+                'menu-item-position' => $position,
+            ));
+
+            if (is_wp_error($menu_item_id)) {
+                WP_CLI::warning("Failed to add category '{$category->name}': " . $menu_item_id->get_error_message());
+                continue;
+            }
+
+            $item_ids[] = $menu_item_id;
+
+            // Set Megamenu Pro display mode if specified
+            $mode_to_set = null;
+
+            if ($depth === 0 && $megamenu_display_mode) {
+                $mode_to_set = $megamenu_display_mode;
+            } elseif ($depth === 1 && $megamenu_submenu_display_mode) {
+                $mode_to_set = $megamenu_submenu_display_mode;
+            }
+
+            if ($mode_to_set) {
+                $parsed = $this->parse_display_mode($mode_to_set);
+                $display_mode_value = $parsed['mode'];
+                $columns = $parsed['columns'];
+
+                $megamenu_settings = get_post_meta($menu_item_id, '_megamenu', true);
+                if (!is_array($megamenu_settings)) {
+                    $megamenu_settings = array();
+                }
+                $megamenu_settings['type'] = $display_mode_value;
+                if ($columns) {
+                    $megamenu_settings['grid_columns'] = (int)$columns;
+                }
+                update_post_meta($menu_item_id, '_megamenu', $megamenu_settings);
+                update_post_meta($menu_item_id, '_megamenu_type', $display_mode_value);
+
+                $item_settings = array('type' => $display_mode_value);
+                if ($columns) {
+                    $item_settings['grid_columns'] = (int)$columns;
+                }
+                update_post_meta($menu_item_id, '_menu_item_megamenu_settings', $item_settings);
+            }
+
+            // Add children recursively
+            if (!empty($category->children)) {
+                $child_item_ids = $this->add_categories_to_menu_with_tracking(
+                    $menu_id,
+                    $category->children,
+                    $menu_item_id,
+                    0,
+                    $megamenu_display_mode,
+                    $megamenu_submenu_display_mode,
+                    $depth + 1
+                );
+
+                // If this item has grid mode, build the grid structure
+                if ($mode_to_set) {
+                    $parsed = $this->parse_display_mode($mode_to_set);
+                    if ($parsed['mode'] === 'grid' && $parsed['columns'] && !empty($child_item_ids)) {
+                        $this->build_grid_structure($menu_item_id, $child_item_ids, $parsed['columns']);
+                    }
+                }
+            }
+        }
+
+        return $item_ids;
+    }
+
+    /**
+     * Build Megamenu Pro grid structure on a parent menu item
+     *
+     * @param int $parent_item_id The parent menu item ID
+     * @param array $child_item_ids Array of child menu item IDs
+     * @param int $num_columns Number of columns in the grid
+     */
+    private function build_grid_structure($parent_item_id, $child_item_ids, $num_columns) {
+        // Calculate column span (assuming 12-column Bootstrap grid)
+        $total_grid_cols = 12;
+        $col_span = floor($total_grid_cols / $num_columns);
+
+        // Build columns array
+        $columns = array();
+        for ($i = 0; $i < $num_columns; $i++) {
+            $columns[$i] = array(
+                'meta' => array(
+                    'span' => (string)$col_span,
+                    'class' => '',
+                    'hide-on-desktop' => 'false',
+                    'hide-on-mobile' => 'false'
+                ),
+                'items' => array()
+            );
+        }
+
+        // Distribute child items across columns
+        foreach ($child_item_ids as $index => $item_id) {
+            $col_index = $index % $num_columns;
+            $columns[$col_index]['items'][] = array(
+                'id' => (string)$item_id,
+                'type' => 'item'
+            );
+        }
+
+        // Build the complete grid structure
+        $grid_structure = array(
+            0 => array(
+                'meta' => array(
+                    'class' => '',
+                    'hide-on-desktop' => 'false',
+                    'hide-on-mobile' => 'false',
+                    'columns' => (string)$total_grid_cols
+                ),
+                'columns' => $columns
+            )
+        );
+
+        // Get existing megamenu settings and add grid structure
+        $megamenu_settings = get_post_meta($parent_item_id, '_megamenu', true);
+        if (!is_array($megamenu_settings)) {
+            $megamenu_settings = array();
+        }
+
+        $megamenu_settings['grid'] = $grid_structure;
+        $megamenu_settings['panel_columns'] = (string)$num_columns;
+
+        // Add default settings if not present
+        if (!isset($megamenu_settings['icon_position'])) {
+            $megamenu_settings['icon_position'] = 'left';
+        }
+        if (!isset($megamenu_settings['sticky_visibility'])) {
+            $megamenu_settings['sticky_visibility'] = 'always';
+        }
+        if (!isset($megamenu_settings['hide_text'])) {
+            $megamenu_settings['hide_text'] = 'false';
+        }
+        if (!isset($megamenu_settings['disable_link'])) {
+            $megamenu_settings['disable_link'] = 'false';
+        }
+        if (!isset($megamenu_settings['hide_arrow'])) {
+            $megamenu_settings['hide_arrow'] = 'false';
+        }
+        if (!isset($megamenu_settings['hide_on_mobile'])) {
+            $megamenu_settings['hide_on_mobile'] = 'false';
+        }
+        if (!isset($megamenu_settings['hide_sub_menu_on_mobile'])) {
+            $megamenu_settings['hide_sub_menu_on_mobile'] = 'false';
+        }
+        if (!isset($megamenu_settings['hide_on_desktop'])) {
+            $megamenu_settings['hide_on_desktop'] = 'false';
+        }
+        if (!isset($megamenu_settings['collapse_children'])) {
+            $megamenu_settings['collapse_children'] = 'false';
+        }
+
+        update_post_meta($parent_item_id, '_megamenu', $megamenu_settings);
     }
 
     /**
