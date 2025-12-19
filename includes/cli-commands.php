@@ -145,6 +145,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         // If we have a parent menu item, set its megamenu display mode
         if ($parent_menu_item_id && $megamenu_display_mode && !$dry_run) {
+            // Parse display mode: extract base mode and column count (e.g., "grid3" -> "grid" + 3 columns)
+            $parsed = $this->parse_display_mode($megamenu_display_mode);
+            $display_mode_value = $parsed['mode'];
+            $columns = $parsed['columns'];
+
             // Megamenu Pro uses multiple meta keys for compatibility
 
             // 1. _megamenu - Main settings array
@@ -152,17 +157,24 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             if (!is_array($megamenu_settings)) {
                 $megamenu_settings = array();
             }
-            $megamenu_settings['type'] = $megamenu_display_mode;
+            $megamenu_settings['type'] = $display_mode_value;
+            if ($columns) {
+                $megamenu_settings['grid_columns'] = (int)$columns;
+            }
             update_post_meta($parent_menu_item_id, '_megamenu', $megamenu_settings);
 
             // 2. _megamenu_type - Direct type value
-            update_post_meta($parent_menu_item_id, '_megamenu_type', $megamenu_display_mode);
+            update_post_meta($parent_menu_item_id, '_megamenu_type', $display_mode_value);
 
             // 3. _menu_item_megamenu_settings - Alternative settings array
-            $item_settings = array('type' => $megamenu_display_mode);
+            $item_settings = array('type' => $display_mode_value);
+            if ($columns) {
+                $item_settings['grid_columns'] = (int)$columns;
+            }
             update_post_meta($parent_menu_item_id, '_menu_item_megamenu_settings', $item_settings);
 
-            WP_CLI::log("Set Megamenu display mode '$megamenu_display_mode' on parent menu item (ID: $parent_menu_item_id).");
+            $log_msg = "Set Megamenu display mode '$display_mode_value'" . ($columns ? " with $columns columns" : "") . " on parent menu item (ID: $parent_menu_item_id).";
+            WP_CLI::log($log_msg);
         }
 
         // Clear existing menu items if requested
@@ -716,12 +728,13 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level
      * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for submenus
      * @param int $depth Current depth level (0 = top-level, 1 = submenu, 2+ = deeper)
+     * @param int|null $parent_grid_columns Number of grid columns in parent (for distributing items)
      * @return int Number of items added
      */
-    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0) {
+    private function add_categories_to_menu($menu_id, $categories, $parent_menu_item_id = 0, $position = 0, $megamenu_display_mode = null, $megamenu_submenu_display_mode = null, $depth = 0, $parent_grid_columns = null) {
         $added_count = 0;
 
-        foreach ($categories as $category) {
+        foreach ($categories as $index => $category) {
             $position++;
 
             // Add the category to the menu
@@ -743,6 +756,22 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
             $added_count++;
 
+            // If parent has grid columns, assign this item to a column
+            if ($parent_grid_columns) {
+                // Distribute items across columns (1-based indexing for Megamenu)
+                $column_number = ($index % $parent_grid_columns) + 1;
+
+                // Set column assignment in _megamenu settings array
+                $megamenu_settings = get_post_meta($menu_item_id, '_megamenu', true);
+                if (!is_array($megamenu_settings)) {
+                    $megamenu_settings = array();
+                }
+                $megamenu_settings['mega_menu_column'] = $column_number;
+                update_post_meta($menu_item_id, '_megamenu', $megamenu_settings);
+
+                WP_CLI::log("  → Assigned '{$category->name}' to column $column_number");
+            }
+
             // Set Megamenu Pro display mode if specified
             $mode_to_set = null;
 
@@ -757,27 +786,58 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
             // Apply the mode if set (Megamenu Pro uses multiple meta keys)
             if ($mode_to_set) {
-                // 1. _megamenu - Main settings array
+                // Parse display mode: extract base mode and column count (e.g., "grid3" -> "grid" + 3 columns)
+                $parsed = $this->parse_display_mode($mode_to_set);
+                $display_mode_value = $parsed['mode'];
+                $columns = $parsed['columns'];
+
+                // 1. _megamenu - Main settings array (preserve existing settings like column assignment)
                 $megamenu_settings = get_post_meta($menu_item_id, '_megamenu', true);
                 if (!is_array($megamenu_settings)) {
                     $megamenu_settings = array();
                 }
-                $megamenu_settings['type'] = $mode_to_set;
+                $megamenu_settings['type'] = $display_mode_value;
+                if ($columns) {
+                    $megamenu_settings['grid_columns'] = (int)$columns;
+                }
+                // Note: This preserves any existing keys like 'mega_menu_column' set earlier
                 update_post_meta($menu_item_id, '_megamenu', $megamenu_settings);
 
                 // 2. _megamenu_type - Direct type value
-                update_post_meta($menu_item_id, '_megamenu_type', $mode_to_set);
+                update_post_meta($menu_item_id, '_megamenu_type', $display_mode_value);
 
                 // 3. _menu_item_megamenu_settings - Alternative settings array
-                $item_settings = array('type' => $mode_to_set);
+                $item_settings = array('type' => $display_mode_value);
+                if ($columns) {
+                    $item_settings['grid_columns'] = (int)$columns;
+                }
                 update_post_meta($menu_item_id, '_menu_item_megamenu_settings', $item_settings);
 
-                WP_CLI::log("  → Set '{$category->name}' (ID: $menu_item_id) type to '$mode_to_set'");
+                $log_msg = "  → Set '{$category->name}' (ID: $menu_item_id) type to '$display_mode_value'" . ($columns ? " ($columns columns)" : "");
+                WP_CLI::log($log_msg);
             }
 
             // Add children recursively
             if (!empty($category->children)) {
-                $added_count += $this->add_categories_to_menu($menu_id, $category->children, $menu_item_id, 0, $megamenu_display_mode, $megamenu_submenu_display_mode, $depth + 1);
+                // Check if this item has grid columns - if so, we need to distribute children across columns
+                $parent_columns = null;
+                if ($mode_to_set) {
+                    $parsed = $this->parse_display_mode($mode_to_set);
+                    if ($parsed['mode'] === 'grid' && $parsed['columns']) {
+                        $parent_columns = $parsed['columns'];
+                    }
+                }
+
+                $added_count += $this->add_categories_to_menu(
+                    $menu_id,
+                    $category->children,
+                    $menu_item_id,
+                    0,
+                    $megamenu_display_mode,
+                    $megamenu_submenu_display_mode,
+                    $depth + 1,
+                    $parent_columns  // Pass column count to distribute children
+                );
             }
         }
 
@@ -1343,6 +1403,33 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             return substr($string, 0, -strlen($suffix));
         }
         return $string;
+    }
+
+    /**
+     * Parse display mode to extract base mode and column count
+     *
+     * Examples:
+     *   "grid3" -> array('mode' => 'grid', 'columns' => 3)
+     *   "grid" -> array('mode' => 'grid', 'columns' => null)
+     *   "flyout" -> array('mode' => 'flyout', 'columns' => null)
+     *
+     * @param string $mode_string The display mode string (e.g., "grid3", "flyout")
+     * @return array Array with 'mode' and 'columns' keys
+     */
+    private function parse_display_mode($mode_string) {
+        // Match pattern: base mode followed by optional digits
+        if (preg_match('/^([a-z]+)(\d+)?$/i', $mode_string, $matches)) {
+            return array(
+                'mode' => $matches[1],
+                'columns' => isset($matches[2]) && $matches[2] !== '' ? (int)$matches[2] : null
+            );
+        }
+
+        // Fallback: return as-is if pattern doesn't match
+        return array(
+            'mode' => $mode_string,
+            'columns' => null
+        );
     }
 }
 
