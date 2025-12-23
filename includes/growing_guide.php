@@ -102,7 +102,7 @@ if (function_exists('vs_sowing_calendar')) {
 				echo $calendar_output;
 			}
 		}
-	}, 3);
+	}, 15);
 	add_action('woocommerce_after_single_product_summary', function () {
 		vs_sowing_calendar();
 	}, 3);
@@ -117,7 +117,7 @@ if (function_exists('category_growing_guide')) {
 
 	add_action('woocommerce_archive_description', function () {
 		if (is_seed_category()) {
-			remove_action('woocommerce_archive_description', 'woocommerce_taxonomy_archive_description', 10);
+			// remove_action('woocommerce_archive_description', 'woocommerce_taxonomy_archive_description', 10);
 			category_growing_guide(null, false);
 		}
 	}, 3);
