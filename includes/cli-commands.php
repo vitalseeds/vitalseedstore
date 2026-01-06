@@ -12,6 +12,9 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *
  * ## EXAMPLES
  *
+ *     # Show category tree structure with slugs
+ *     $ wp vitalseedstore menu show_categories
+ *
  *     # Construct complete shop menu structure (vegetables, flowers, herbs)
  *     $ wp vitalseedstore menu construct_shop_menus
  *
@@ -1531,6 +1534,111 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             }
 
             WP_CLI::success(sprintf("Updated %d of %d items.", $updated, $update_count));
+        }
+    }
+
+    // ========================================================================
+    // SHOW CATEGORIES COMMAND
+    // ========================================================================
+
+    /**
+     * Display the product category tree structure
+     *
+     * Shows a hierarchical view of all product categories with their names and slugs.
+     * Useful for understanding the category structure and finding the correct slugs
+     * to use with the populate command.
+     *
+     * ## OPTIONS
+     *
+     * [--parent-category=<slug>]
+     * : Only show categories under this parent category
+     *
+     * [--show-count]
+     * : Show product count for each category
+     *
+     * [--show-id]
+     * : Show category term IDs
+     *
+     * ## EXAMPLES
+     *
+     *     # Show all product categories
+     *     wp vitalseedstore menu show_categories
+     *
+     *     # Show only categories under 'seeds'
+     *     wp vitalseedstore menu show_categories --parent-category=seeds
+     *
+     *     # Show categories with product counts
+     *     wp vitalseedstore menu show_categories --show-count
+     *
+     *     # Show categories with IDs and counts
+     *     wp vitalseedstore menu show_categories --show-id --show-count
+     *
+     * @when after_wp_load
+     */
+    public function show_categories($args = array(), $assoc_args = array()) {
+        $parent_category = isset($assoc_args['parent-category']) ? $assoc_args['parent-category'] : null;
+        $show_count = isset($assoc_args['show-count']);
+        $show_id = isset($assoc_args['show-id']);
+
+        if ($parent_category) {
+            WP_CLI::log("Category tree under: $parent_category");
+        } else {
+            WP_CLI::log("All product categories:");
+        }
+        WP_CLI::log("");
+
+        // Get category tree (without filtering)
+        $categories = $this->get_categories_tree($parent_category);
+
+        if (empty($categories)) {
+            WP_CLI::warning("No categories found.");
+            return;
+        }
+
+        // Display the tree
+        $this->display_category_tree($categories, 0, $show_count, $show_id);
+
+        WP_CLI::log("");
+        WP_CLI::success(sprintf("Found %d top-level categories.", count($categories)));
+    }
+
+    /**
+     * Display category tree with indentation
+     *
+     * @param array $categories Array of category objects
+     * @param int $level Indentation level
+     * @param bool $show_count Whether to show product counts
+     * @param bool $show_id Whether to show term IDs
+     */
+    private function display_category_tree($categories, $level = 0, $show_count = false, $show_id = false) {
+        foreach ($categories as $category) {
+            $indent = str_repeat('  ', $level);
+            $marker = $level > 0 ? '└─ ' : '';
+
+            // Build the display line
+            $line = sprintf('%s%s%s', $indent, $marker, $category->name);
+
+            // Add slug in parentheses
+            $line .= WP_CLI::colorize(" %g({$category->slug})%n");
+
+            // Add ID if requested
+            if ($show_id) {
+                $line .= WP_CLI::colorize(" %y[ID: {$category->term_id}]%n");
+            }
+
+            // Add count if requested
+            if ($show_count) {
+                $count = $category->count;
+                $plural = $count === 1 ? 'product' : 'products';
+                $line .= WP_CLI::colorize(" %c($count $plural)%n");
+            }
+
+            WP_CLI::log($line);
+
+            // Recursively display children
+            if (!empty($category->children)) {
+                $this->display_category_tree($category->children, $level + 1, $show_count, $show_id);
+            }
         }
     }
 
