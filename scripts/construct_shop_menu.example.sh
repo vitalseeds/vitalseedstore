@@ -1,16 +1,15 @@
 # This needs to be copied on the prod server to add the wp path, eg:
-# wp --path=/www/sitedir/public vitalseedstore menu populate $MENU_NAME
+# wp --path=/www/sitedir/public wp vitalseedstore menu construct_shop_menus
 
-# wp vitalseedstore menu clear megamenu_copy --yes
+# Example: moving categories around
+# OLD_PARENT_ID=$(wp term get product_cat herb-seeds --by=slug --field=term_id) && \
+# NEW_PARENT_ID=$(wp term create product_cat "Culinary Herbs" --parent=$OLD_PARENT_ID --slug=culinary-herbs --porcelain) && \
+# wp term list product_cat --parent=$OLD_PARENT_ID --field=term_id | xargs -n1 wp term update product_cat --parent=$NEW_PARENT_ID
+# wp term update product_cat culinary-herbs --by=slug --parent=$OLD_PARENT_ID
+# wp term update product_cat medicinal-herbs --by=slug --parent=$OLD_PARENT_ID
 
+# Hardcoded for simplicity but left forreference
 MENU_NAME=megamenu_full
 PARENT_MENU_ITEM=Shop
 
-wp vitalseedstore menu populate $MENU_NAME \
---parent-category=seeds \
---parent-menu-item=$PARENT_MENU_ITEM \
---clear-submenu \
---megamenu-display-mode=tabbed \
---megamenu-submenu-display-mode=grid4
-wp vitalseedstore menu remove_suffix $MENU_NAME "$PARENT_MENU_ITEM" " Seeds" --case-insensitive --yes
-wp vitalseedstore menu strip_categories $MENU_NAME "$PARENT_MENU_ITEM" --yes
+wp vitalseedstore menu construct_shop_menus
