@@ -12,11 +12,20 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *
  * ## EXAMPLES
  *
+ *     # Construct complete shop menu structure (vegetables, flowers, herbs)
+ *     $ wp vitalseedstore menu construct_shop_menus
+ *
  *     # Populate menu with all product categories
  *     $ wp vitalseedstore menu populate primary
  *
  *     # Populate menu with categories under a parent
  *     $ wp vitalseedstore menu populate primary --parent-category=seeds
+ *
+ *     # Add specific subcategories from 'seeds' parent (vegetables only)
+ *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --categories=vegetables --clear-submenu
+ *
+ *     # Add multiple specific subcategories (vegetables and flowers)
+ *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --categories=vegetables,flowers --clear-submenu
  *
  *     # Add categories under an existing menu item
  *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds
@@ -56,6 +65,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * [--parent-category=<slug>]
      * : Only include categories under this parent category (default: all top-level categories)
      *
+     * [--categories=<slugs>]
+     * : Comma-separated list of category slugs to include (filters children of parent-category)
+     *
      * [--parent-menu-item=<title>]
      * : Add categories under this existing menu item (by title)
      *
@@ -87,6 +99,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *
      *     # Populate menu with only categories under 'seeds' parent
      *     wp vitalseedstore menu populate primary --parent-category=seeds
+     *
+     *     # Add only 'vegetables' subcategory from 'seeds' to "Shop" menu item
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --categories=vegetables --clear-submenu
+     *
+     *     # Add multiple specific subcategories (vegetables and flowers) from 'seeds'
+     *     wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --categories=vegetables,flowers --clear-submenu
      *
      *     # Add categories under an existing "Shop" menu item
      *     wp vitalseedstore menu populate primary --parent-menu-item="Shop"
@@ -131,6 +149,13 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $megamenu_display_mode = isset($assoc_args['megamenu-display-mode']) ? $assoc_args['megamenu-display-mode'] : null;
         $megamenu_submenu_display_mode = isset($assoc_args['megamenu-submenu-display-mode']) ? $assoc_args['megamenu-submenu-display-mode'] : null;
         $dry_run = isset($assoc_args['dry-run']);
+
+        // Parse --categories parameter (comma-separated slugs)
+        $filter_categories = null;
+        if (isset($assoc_args['categories'])) {
+            $filter_categories = array_map('trim', explode(',', $assoc_args['categories']));
+            WP_CLI::log("Filtering to specific categories: " . implode(', ', $filter_categories));
+        }
 
         // Get the menu object
         $menu = $this->get_menu($menu_identifier);
@@ -190,7 +215,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         }
 
         // Get categories that will be added
-        $categories = $this->get_categories_tree($parent_category);
+        $categories = $this->get_categories_tree($parent_category, $filter_categories);
 
         if (empty($categories)) {
             WP_CLI::warning("No categories found to add to menu.");
@@ -227,7 +252,8 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             $parent_menu_item_title,
             $megamenu_display_mode,
             $megamenu_submenu_display_mode,
-            $dry_run
+            $dry_run,
+            $filter_categories
         );
     }
 
@@ -580,8 +606,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
     /**
      * Get hierarchical tree of product categories
+     *
+     * @param string|null $parent_slug Parent category slug to filter by
+     * @param array|null $filter_slugs Array of category slugs to include (filters children of parent)
+     * @return array Tree of category objects
      */
-    private function get_categories_tree($parent_slug = null) {
+    private function get_categories_tree($parent_slug = null, $filter_slugs = null) {
         $parent_id = 0;
 
         // If parent category is specified, get its ID
@@ -606,6 +636,23 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         if (is_wp_error($categories)) {
             WP_CLI::error("Error fetching categories: " . $categories->get_error_message());
+        }
+
+        // Filter categories if filter_slugs is specified
+        if ($filter_slugs !== null && !empty($filter_slugs)) {
+            $original_count = count($categories);
+            $categories = array_filter($categories, function($cat) use ($filter_slugs) {
+                return in_array($cat->slug, $filter_slugs);
+            });
+            $filtered_count = count($categories);
+
+            if ($filtered_count === 0 && $original_count > 0) {
+                WP_CLI::warning(sprintf(
+                    "No categories matched the filter. Found %d categories but none matched: %s",
+                    $original_count,
+                    implode(', ', $filter_slugs)
+                ));
+            }
         }
 
         // Build hierarchical tree
@@ -660,10 +707,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @param string|null $megamenu_display_mode Megamenu Pro display mode for top-level items
      * @param string|null $megamenu_submenu_display_mode Megamenu Pro display mode for first-level submenus
      * @param bool $dry_run Whether this is a dry run
+     * @param array|null $filter_categories Array of category slugs to include (filters children of parent)
      */
-    private function populate_menu_with_categories($menu, $parent_category, $parent_menu_item_id, $parent_menu_item_title, $megamenu_display_mode, $megamenu_submenu_display_mode, $dry_run) {
+    private function populate_menu_with_categories($menu, $parent_category, $parent_menu_item_id, $parent_menu_item_title, $megamenu_display_mode, $megamenu_submenu_display_mode, $dry_run, $filter_categories = null) {
         // Get categories to add
-        $categories = $this->get_categories_tree($parent_category);
+        $categories = $this->get_categories_tree($parent_category, $filter_categories);
 
         if (empty($categories)) {
             WP_CLI::warning("No categories found to add to menu.");
@@ -1484,6 +1532,134 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
             WP_CLI::success(sprintf("Updated %d of %d items.", $updated, $update_count));
         }
+    }
+
+    // ========================================================================
+    // CONSTRUCT SHOP MENUS COMMAND
+    // ========================================================================
+
+    /**
+     * Construct the complete shop menu structure with vegetables, flowers, and herbs
+     *
+     * This is a convenience command that automates the process of building the shop menu
+     * by running populate, remove_suffix, and strip_categories for each seed category type.
+     *
+     * ## OPTIONS
+     *
+     * [<menu>]
+     * : The menu slug, ID, or name (default: megamenu_full)
+     * ---
+     * default: megamenu_full
+     * ---
+     *
+     * [--parent-menu-item=<title>]
+     * : The parent menu item title to add categories under
+     * ---
+     * default: Shop
+     * ---
+     *
+     * [--dry-run]
+     * : Preview what would be done without actually making changes
+     *
+     * ## EXAMPLES
+     *
+     *     # Construct shop menus with default settings
+     *     wp vitalseedstore menu construct_shop_menus
+     *
+     *     # Construct shop menus for a specific menu
+     *     wp vitalseedstore menu construct_shop_menus primary
+     *
+     *     # Preview changes without executing
+     *     wp vitalseedstore menu construct_shop_menus --dry-run
+     *
+     *     # Use a different parent menu item
+     *     wp vitalseedstore menu construct_shop_menus --parent-menu-item="Products"
+     *
+     * @when after_wp_load
+     */
+    public function construct_shop_menus($args = array(), $assoc_args = array()) {
+        $menu_identifier = isset($args[0]) ? $args[0] : 'megamenu_full';
+        $parent_menu_item = isset($assoc_args['parent-menu-item']) ? $assoc_args['parent-menu-item'] : 'Shop';
+        $dry_run = isset($assoc_args['dry-run']);
+
+        WP_CLI::log("========================================");
+        WP_CLI::log("Constructing Shop Menu Structure");
+        WP_CLI::log("========================================");
+        WP_CLI::log("Menu: $menu_identifier");
+        WP_CLI::log("Parent menu item: $parent_menu_item");
+        if ($dry_run) {
+            WP_CLI::log("Mode: DRY RUN (no changes will be made)");
+        }
+        WP_CLI::log("");
+
+        // Define the seed categories to process
+        $seed_categories = array(
+            array(
+                'slug' => 'vegetable-seeds',
+                'title' => 'Vegetable Seeds',
+            ),
+            array(
+                'slug' => 'flower-seeds',
+                'title' => 'Flower Seeds',
+            ),
+            array(
+                'slug' => 'herb-seeds',
+                'title' => 'Herb Seeds',
+            ),
+        );
+
+        foreach ($seed_categories as $category) {
+            WP_CLI::log("----------------------------------------");
+            WP_CLI::log("Processing: {$category['title']}");
+            WP_CLI::log("----------------------------------------");
+
+            // Step 1: Populate menu with category
+            WP_CLI::log("\n1. Populating menu with {$category['slug']} and children...");
+            $populate_args = array($menu_identifier);
+            $populate_assoc_args = array(
+                'parent-menu-item' => $parent_menu_item,
+                'parent-category' => 'seeds',
+                'categories' => $category['slug'],
+                'clear-submenu' => true,
+                'megamenu-submenu-display-mode' => 'grid4',
+            );
+            if ($dry_run) {
+                $populate_assoc_args['dry-run'] = true;
+            }
+            $this->populate($populate_args, $populate_assoc_args);
+
+            if (!$dry_run) {
+                // Step 2: Remove " Seeds" suffix
+                WP_CLI::log("\n2. Removing ' Seeds' suffix from {$category['title']} items...");
+                $remove_suffix_args = array($menu_identifier, $category['title'], ' Seeds');
+                $remove_suffix_assoc_args = array(
+                    'case-insensitive' => true,
+                    'yes' => true,
+                );
+                $this->remove_suffix($remove_suffix_args, $remove_suffix_assoc_args);
+
+                // Step 3: Strip parent category names
+                WP_CLI::log("\n3. Stripping parent category names from {$category['title']} items...");
+                $strip_args = array($menu_identifier, $category['title']);
+                $strip_assoc_args = array(
+                    'yes' => true,
+                );
+                $this->strip_categories($strip_args, $strip_assoc_args);
+            } else {
+                WP_CLI::log("\n[DRY RUN] Would remove ' Seeds' suffix");
+                WP_CLI::log("[DRY RUN] Would strip parent category names");
+            }
+
+            WP_CLI::log("");
+        }
+
+        WP_CLI::log("========================================");
+        if ($dry_run) {
+            WP_CLI::log("DRY RUN COMPLETE - No changes were made");
+        } else {
+            WP_CLI::success("Shop menu structure construction complete!");
+        }
+        WP_CLI::log("========================================");
     }
 
     // ========================================================================
