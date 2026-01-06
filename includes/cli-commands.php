@@ -817,6 +817,121 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     }
 
     /**
+     * Populate menu with products from a category
+     *
+     * @param object $menu The menu object
+     * @param string $category_slug The category slug to get products from
+     * @param int $parent_menu_item_id Parent menu item ID to nest under
+     * @param string|null $megamenu_display_mode Megamenu Pro display mode for the products
+     * @param bool $dry_run Whether this is a dry run
+     */
+    private function populate_menu_with_products($menu, $category_slug, $parent_menu_item_id, $megamenu_display_mode = null, $dry_run = false) {
+        // Get the category
+        $category = get_term_by('slug', $category_slug, 'product_cat');
+        if (!$category) {
+            WP_CLI::error("Category '$category_slug' not found.");
+        }
+
+        // Get products from this category
+        $args = array(
+            'post_type' => 'product',
+            'posts_per_page' => -1,
+            'tax_query' => array(
+                array(
+                    'taxonomy' => 'product_cat',
+                    'field' => 'term_id',
+                    'terms' => $category->term_id,
+                ),
+            ),
+            'orderby' => 'title',
+            'order' => 'ASC',
+        );
+
+        $products = get_posts($args);
+
+        if (empty($products)) {
+            WP_CLI::warning("No products found in category '$category_slug'.");
+            return;
+        }
+
+        WP_CLI::log(sprintf("Found %d products in '%s' category.", count($products), $category->name));
+
+        if ($dry_run) {
+            WP_CLI::log("\n[DRY RUN] Would add the following products:");
+            foreach ($products as $product) {
+                WP_CLI::log(sprintf("  - %s", $product->post_title));
+            }
+            if ($megamenu_display_mode) {
+                WP_CLI::log(sprintf("\n[DRY RUN] Would set Megamenu display mode to '%s'", $megamenu_display_mode));
+            }
+        } else {
+            $position = 0;
+            $added = 0;
+            $product_item_ids = array();
+
+            foreach ($products as $product) {
+                $position++;
+
+                $menu_item_id = wp_update_nav_menu_item($menu->term_id, 0, array(
+                    'menu-item-title' => $product->post_title,
+                    'menu-item-url' => get_permalink($product->ID),
+                    'menu-item-status' => 'publish',
+                    'menu-item-type' => 'post_type',
+                    'menu-item-object' => 'product',
+                    'menu-item-object-id' => $product->ID,
+                    'menu-item-parent-id' => (int) $parent_menu_item_id,
+                    'menu-item-position' => $position,
+                ));
+
+                if (is_wp_error($menu_item_id)) {
+                    WP_CLI::warning(sprintf("Failed to add product '%s': %s", $product->post_title, $menu_item_id->get_error_message()));
+                } else {
+                    $added++;
+                    $product_item_ids[] = $menu_item_id;
+                }
+            }
+
+            WP_CLI::success(sprintf("Added %d product menu items to '%s'.", $added, $menu->name));
+
+            // Apply megamenu display mode to the parent category item if specified
+            if ($megamenu_display_mode && $parent_menu_item_id) {
+                $parsed = $this->parse_display_mode($megamenu_display_mode);
+                $display_mode_value = $parsed['mode'];
+                $columns = $parsed['columns'];
+
+                // 1. _megamenu - Main settings array
+                $megamenu_settings = get_post_meta($parent_menu_item_id, '_megamenu', true);
+                if (!is_array($megamenu_settings)) {
+                    $megamenu_settings = array();
+                }
+                $megamenu_settings['type'] = $display_mode_value;
+                if ($columns) {
+                    $megamenu_settings['grid_columns'] = (int)$columns;
+                }
+                update_post_meta($parent_menu_item_id, '_megamenu', $megamenu_settings);
+
+                // 2. _megamenu_type - Direct type value
+                update_post_meta($parent_menu_item_id, '_megamenu_type', $display_mode_value);
+
+                // 3. _menu_item_megamenu_settings - Alternative settings array
+                $item_settings = array('type' => $display_mode_value);
+                if ($columns) {
+                    $item_settings['grid_columns'] = (int)$columns;
+                }
+                update_post_meta($parent_menu_item_id, '_menu_item_megamenu_settings', $item_settings);
+
+                WP_CLI::success(sprintf("Set Megamenu display mode to '%s' for category menu item.", $megamenu_display_mode));
+
+                // Build grid structure to distribute products across columns
+                if ($display_mode_value === 'grid' && $columns && !empty($product_item_ids)) {
+                    $this->build_grid_structure($parent_menu_item_id, $product_item_ids, $columns);
+                    WP_CLI::success(sprintf("Distributed %d products across %d columns.", count($product_item_ids), $columns));
+                }
+            }
+        }
+    }
+
+    /**
      * Add categories to menu recursively
      *
      * @param int $menu_id The menu term ID
@@ -1964,21 +2079,25 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 'slug' => 'vegetable-seeds',
                 'parent' => 'seeds',
                 'suffix' => ' Seeds',
+                'type' => 'categories',  // Populate with subcategories
             ),
             array(
                 'slug' => 'flower-seeds',
                 'parent' => 'seeds',
                 'suffix' => ' Seeds',
+                'type' => 'categories',  // Populate with subcategories
             ),
             array(
                 'slug' => 'culinary-herbs',
                 'parent' => 'herb-seeds',
                 'suffix' => ' Seeds',
+                'type' => 'categories',  // Populate with subcategories
             ),
             array(
                 'slug' => 'medicinal-herbs',
                 'parent' => 'herb-seeds',
                 'suffix' => ' Seeds',
+                'type' => 'products',  // Populate with individual products
             ),
         );
 
@@ -1987,23 +2106,86 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             WP_CLI::log("Processing: {$category['slug']}");
             WP_CLI::log("----------------------------------------");
 
-            // Step 1: Populate menu with category
-            WP_CLI::log("\n1. Populating menu with {$category['slug']} and children...");
-            $populate_args = array($menu_identifier);
-            $populate_assoc_args = array(
-                'parent-menu-item' => $parent_menu_item,
-                'parent-category' => $category['parent'],
-                'categories' => $category['slug'],
-                'clear-submenu' => true,
-                'megamenu-submenu-display-mode' => 'grid4',
-            );
-            if ($dry_run) {
-                $populate_assoc_args['dry-run'] = true;
+            // Get the menu object
+            $menu = $this->get_menu($menu_identifier);
+            if (!$menu) {
+                WP_CLI::error("Menu '$menu_identifier' not found.");
             }
-            $this->populate($populate_args, $populate_assoc_args);
 
-            if (!$dry_run) {
+            // Find the parent menu item under which we'll add items
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item' not found in menu.");
+            }
+
+            // Step 1: Populate menu based on type
+            if ($category['type'] === 'products') {
+                WP_CLI::log("\n1. Populating menu with products from {$category['slug']}...");
+
+                // First, need to create the category menu item itself
+                if (!$dry_run) {
+                    // Find or create the category menu item
+                    $cat_term = get_term_by('slug', $category['slug'], 'product_cat');
+                    if (!$cat_term) {
+                        WP_CLI::error("Category '{$category['slug']}' not found.");
+                    }
+
+                    // Check if category menu item already exists
+                    $category_menu_item_id = $this->find_menu_item_by_category_slug($menu->term_id, $category['slug'], $parent_menu_item_id);
+
+                    if (!$category_menu_item_id) {
+                        // Create the category menu item
+                        $category_menu_item_id = wp_update_nav_menu_item($menu->term_id, 0, array(
+                            'menu-item-title' => $cat_term->name,
+                            'menu-item-url' => get_term_link($cat_term),
+                            'menu-item-status' => 'publish',
+                            'menu-item-type' => 'taxonomy',
+                            'menu-item-object' => 'product_cat',
+                            'menu-item-object-id' => $cat_term->term_id,
+                            'menu-item-parent-id' => (int) $parent_menu_item_id,
+                        ));
+
+                        if (is_wp_error($category_menu_item_id)) {
+                            WP_CLI::error("Failed to create category menu item: " . $category_menu_item_id->get_error_message());
+                        }
+                        WP_CLI::log("Created category menu item: {$cat_term->name}");
+                    } else {
+                        WP_CLI::log("Found existing category menu item: {$cat_term->name}");
+
+                        // Clear existing children
+                        $menu_items = wp_get_nav_menu_items($menu->term_id);
+                        $descendants = $this->get_menu_item_descendants($category_menu_item_id, $menu_items);
+                        foreach ($descendants as $item) {
+                            wp_delete_post($item->ID, true);
+                        }
+                        WP_CLI::log("Cleared " . count($descendants) . " existing items under category.");
+                    }
+
+                    // Populate with products (using grid4 display mode)
+                    $this->populate_menu_with_products($menu, $category['slug'], $category_menu_item_id, 'grid4', $dry_run);
+                } else {
+                    WP_CLI::log("[DRY RUN] Would populate with products from {$category['slug']}");
+                }
+            } else {
+                // Default: populate with categories
+                WP_CLI::log("\n1. Populating menu with {$category['slug']} and children...");
+                $populate_args = array($menu_identifier);
+                $populate_assoc_args = array(
+                    'parent-menu-item' => $parent_menu_item,
+                    'parent-category' => $category['parent'],
+                    'categories' => $category['slug'],
+                    'clear-submenu' => true,
+                    'megamenu-submenu-display-mode' => 'grid4',
+                );
+                if ($dry_run) {
+                    $populate_assoc_args['dry-run'] = true;
+                }
+                $this->populate($populate_args, $populate_assoc_args);
+            }
+
+            if (!$dry_run && $category['type'] !== 'products') {
                 // Step 2: Remove suffix (using category slug for reliability)
+                // Skip for products as they don't have category suffixes
                 WP_CLI::log("\n2. Removing '{$category['suffix']}' suffix from {$category['slug']} items...");
                 $remove_suffix_args = array($menu_identifier, $category['slug'], $category['suffix']);
                 $remove_suffix_assoc_args = array(
@@ -2014,6 +2196,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 $this->remove_suffix($remove_suffix_args, $remove_suffix_assoc_args);
 
                 // Step 3: Strip parent category names (using category slug for reliability)
+                // Skip for products as they don't have parent category names in titles
                 WP_CLI::log("\n3. Stripping parent category names from {$category['slug']} items...");
                 $strip_args = array($menu_identifier, $category['slug']);
                 $strip_assoc_args = array(
@@ -2021,7 +2204,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                     'yes' => true,
                 );
                 $this->strip_categories($strip_args, $strip_assoc_args);
-            } else {
+            } elseif ($dry_run && $category['type'] !== 'products') {
                 WP_CLI::log("\n[DRY RUN] Would remove '{$category['suffix']}' suffix");
                 WP_CLI::log("[DRY RUN] Would strip parent category names");
             }
