@@ -238,7 +238,8 @@ ul.products li.product:nth-of-type( 2n ) {
 	/* all: reset; */
 	font-size: 1rem;
 	display: block;
-	width: inherit;
+	width: auto;
+	padding: 0;
 }
 
 /* GROWING GUIDE */
