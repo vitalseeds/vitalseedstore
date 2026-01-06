@@ -823,9 +823,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @param string $category_slug The category slug to get products from
      * @param int $parent_menu_item_id Parent menu item ID to nest under
      * @param string|null $megamenu_display_mode Megamenu Pro display mode for the products
+     * @param bool $strip_brackets Strip content in parentheses/brackets from product titles
+     * @param bool $strip_after_hyphen Strip content after hyphens/dashes from product titles
      * @param bool $dry_run Whether this is a dry run
      */
-    private function populate_menu_with_products($menu, $category_slug, $parent_menu_item_id, $megamenu_display_mode = null, $dry_run = false) {
+    private function populate_menu_with_products($menu, $category_slug, $parent_menu_item_id, $megamenu_display_mode = null, $strip_brackets = false, $strip_after_hyphen = false, $dry_run = false) {
         // Get the category
         $category = get_term_by('slug', $category_slug, 'product_cat');
         if (!$category) {
@@ -872,8 +874,14 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             foreach ($products as $product) {
                 $position++;
 
+                // Clean product title if requested
+                $menu_title = $product->post_title;
+                if ($strip_brackets || $strip_after_hyphen) {
+                    $menu_title = $this->clean_product_title($menu_title, $strip_brackets, $strip_after_hyphen);
+                }
+
                 $menu_item_id = wp_update_nav_menu_item($menu->term_id, 0, array(
-                    'menu-item-title' => $product->post_title,
+                    'menu-item-title' => $menu_title,
                     'menu-item-url' => get_permalink($product->ID),
                     'menu-item-status' => 'publish',
                     'menu-item-type' => 'post_type',
@@ -929,6 +937,48 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 }
             }
         }
+    }
+
+    /**
+     * Clean product title by removing brackets, parentheses, and content after hyphens
+     *
+     * eg `Evening Primrose (Organic) – Oenothera biennis ***NEW FOR 2026***` becomes `Evening Primrose`
+     *
+     * @param string $title The product title to clean
+     * @param bool $strip_brackets Strip content in parentheses/brackets
+     * @param bool $strip_after_hyphen Strip content after hyphens/dashes
+     * @return string Cleaned title
+     */
+    private function clean_product_title($title, $strip_brackets = true, $strip_after_hyphen = true) {
+        $original = $title;
+
+        // Strip content in parentheses and brackets (including the brackets themselves)
+        if ($strip_brackets) {
+            // Remove content in parentheses: (text)
+            $title = preg_replace('/\s*\([^)]*\)\s*/u', ' ', $title);
+            // Remove content in square brackets: [text]
+            $title = preg_replace('/\s*\[[^\]]*\]\s*/u', ' ', $title);
+            // Remove content in curly braces: {text}
+            $title = preg_replace('/\s*\{[^}]*\}\s*/u', ' ', $title);
+        }
+
+        // Strip content after hyphen or dash (including various dash types)
+        if ($strip_after_hyphen) {
+            // Remove content after various types of dashes: - – — (hyphen, en-dash, em-dash)
+            $title = preg_replace('/\s*[-–—]\s*.*/u', '', $title);
+        }
+
+        // Clean up whitespace
+        $title = preg_replace('/\s+/', ' ', $title);  // Multiple spaces to single space
+        $title = trim($title);  // Trim leading/trailing whitespace
+
+        // Remove any remaining asterisks and special markers
+        $title = preg_replace('/\*+/', '', $title);
+
+        // Final cleanup
+        $title = trim($title);
+
+        return $title;
     }
 
     /**
@@ -2161,8 +2211,8 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                         WP_CLI::log("Cleared " . count($descendants) . " existing items under category.");
                     }
 
-                    // Populate with products (using grid4 display mode)
-                    $this->populate_menu_with_products($menu, $category['slug'], $category_menu_item_id, 'grid4', $dry_run);
+                    // Populate with products (using grid4 display mode, clean titles)
+                    $this->populate_menu_with_products($menu, $category['slug'], $category_menu_item_id, 'grid4', true, true, $dry_run);
                 } else {
                     WP_CLI::log("[DRY RUN] Would populate with products from {$category['slug']}");
                 }
