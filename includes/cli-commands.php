@@ -1603,8 +1603,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
                 'title' => 'Flower Seeds',
             ),
             array(
-                'slug' => 'herb-seeds',
-                'title' => 'Herb Seeds',
+                'slug' => 'culinary-herbs',
+                'title' => 'Culinary Herbs',
+            ),
+            array(
+                'slug' => 'medicinal-herbs',
+                'title' => 'Medicinal Herbs',
             ),
         );
 
