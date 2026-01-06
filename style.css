@@ -5,7 +5,7 @@
  Author:       Tom Readings
  Author URI:   https//github.com/vitalseeds
  Template:     storefront
- Version:      1.0.7
+ Version:      1.0.8
  Text Domain:  vitalseeds
 */
 
@@ -235,13 +235,14 @@ ul.products li.product:nth-of-type( 2n ) {
 
 .main-navigation ul.nav-menu ul li .textwidget p,
 .main-navigation ul.nav-menu ul li .textwidget a {
-	/* all: reset; */
 	font-size: 1rem;
-	display: block;
-	width: auto;
-	padding: 0;
 }
-
+.main-navigation ul.nav-menu ul li .textwidget a {
+	display: inline;
+	padding: 0;
+	font-weight: initial;
+	color: var(--heading-color);
+}
 /* GROWING GUIDE */
 
 /* flickity on by default */
