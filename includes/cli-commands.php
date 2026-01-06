@@ -1538,6 +1538,193 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
     }
 
     // ========================================================================
+    // REMOVE CATEGORY COMMAND
+    // ========================================================================
+
+    /**
+     * Remove menu items by category slug
+     *
+     * Finds and removes all menu items that link to a specific product category,
+     * including all their descendant items. Useful for removing specific categories
+     * from a menu without knowing the menu item ID.
+     *
+     * ## OPTIONS
+     *
+     * <menu>
+     * : The menu slug, ID, or name
+     *
+     * <category-slug>
+     * : The product category slug to remove from the menu
+     *
+     * [--parent-menu-item=<title>]
+     * : Only remove category items under this parent menu item
+     *
+     * [--dry-run]
+     * : Preview what would be deleted without actually deleting
+     *
+     * [--yes]
+     * : Skip confirmation prompt and proceed with deletion
+     *
+     * ## EXAMPLES
+     *
+     *     # Remove all "vegetables" category items from the menu
+     *     wp vitalseedstore menu remove_category primary vegetables
+     *
+     *     # Remove "flower-seeds" only from under "Shop" parent
+     *     wp vitalseedstore menu remove_category megamenu_full flower-seeds --parent-menu-item="Shop"
+     *
+     *     # Preview what would be deleted
+     *     wp vitalseedstore menu remove_category primary vegetables --dry-run
+     *
+     *     # Remove without confirmation (non-interactive)
+     *     wp vitalseedstore menu remove_category primary vegetables --yes
+     *
+     * @when after_wp_load
+     */
+    public function remove_category($args, $assoc_args) {
+        list($menu_identifier, $category_slug) = $args;
+
+        $parent_menu_item_title = isset($assoc_args['parent-menu-item']) ? $assoc_args['parent-menu-item'] : null;
+        $dry_run = isset($assoc_args['dry-run']);
+        $skip_confirm = isset($assoc_args['yes']);
+
+        // Get the menu object
+        $menu = $this->get_menu($menu_identifier);
+        if (!$menu) {
+            WP_CLI::error("Menu '$menu_identifier' not found.");
+        }
+
+        WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
+
+        // Get the category by slug
+        $category = get_term_by('slug', $category_slug, 'product_cat');
+        if (!$category) {
+            WP_CLI::error("Category '$category_slug' not found.");
+        }
+
+        WP_CLI::log("Looking for menu items pointing to category: {$category->name} ({$category_slug})");
+
+        // Find parent menu item if specified
+        $parent_menu_item_id = null;
+        if ($parent_menu_item_title) {
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+            }
+            WP_CLI::log("Searching only under menu item: $parent_menu_item_title (ID: $parent_menu_item_id)");
+        }
+
+        // Get all menu items
+        $menu_items = wp_get_nav_menu_items($menu->term_id);
+        if (!$menu_items || empty($menu_items)) {
+            WP_CLI::warning("Menu '{$menu->name}' is empty.");
+            return;
+        }
+
+        // Find menu items that point to this category
+        $items_to_delete = array();
+        foreach ($menu_items as $item) {
+            // Check if this is a category menu item pointing to our target category
+            if ($item->type === 'taxonomy' &&
+                $item->object === 'product_cat' &&
+                $item->object_id == $category->term_id) {
+
+                // If parent menu item is specified, only include items under it
+                if ($parent_menu_item_id !== null) {
+                    // Check if this item is a descendant of the parent menu item
+                    if ($this->is_descendant_of($item->ID, $parent_menu_item_id, $menu_items)) {
+                        $items_to_delete[] = $item;
+                    }
+                } else {
+                    $items_to_delete[] = $item;
+                }
+            }
+        }
+
+        if (empty($items_to_delete)) {
+            $msg = $parent_menu_item_title
+                ? "No menu items found for category '$category_slug' under '$parent_menu_item_title'."
+                : "No menu items found for category '$category_slug'.";
+            WP_CLI::warning($msg);
+            return;
+        }
+
+        // Count total items including descendants
+        $total_to_delete = 0;
+        foreach ($items_to_delete as $item) {
+            $total_to_delete += 1 + $this->count_descendants($item->ID, $menu_items);
+        }
+
+        WP_CLI::log(sprintf("Found %d menu item(s) for this category.", count($items_to_delete)));
+
+        if ($dry_run) {
+            WP_CLI::log("\n[DRY RUN] Would delete the following menu items and their descendants:");
+            foreach ($items_to_delete as $item) {
+                $descendant_count = $this->count_descendants($item->ID, $menu_items);
+                $desc_text = $descendant_count > 0 ? " (+$descendant_count descendants)" : "";
+                WP_CLI::log(sprintf("  - %s (ID: %d)%s", $item->title, $item->ID, $desc_text));
+            }
+            WP_CLI::log(sprintf("\nTotal items to delete: %d", $total_to_delete));
+        } else {
+            $confirm_msg = sprintf(
+                "Are you sure you want to delete %d menu item(s) for category '%s' (including %d total items with descendants)?",
+                count($items_to_delete),
+                $category->name,
+                $total_to_delete
+            );
+
+            if (!$skip_confirm) {
+                WP_CLI::confirm($confirm_msg);
+            }
+
+            // Delete each item and its descendants
+            $deleted = 0;
+            foreach ($items_to_delete as $item) {
+                $count = $this->delete_menu_item_and_descendants($menu->term_id, $item->ID, $menu_items);
+                $deleted += $count;
+                WP_CLI::log(sprintf("Deleted '%s' and %d descendants", $item->title, $count - 1));
+            }
+
+            WP_CLI::success(sprintf("Deleted %d total menu items.", $deleted));
+        }
+    }
+
+    /**
+     * Check if a menu item is a descendant of another menu item
+     *
+     * @param int $item_id The menu item ID to check
+     * @param int $ancestor_id The potential ancestor menu item ID
+     * @param array $menu_items All menu items
+     * @return bool True if item is a descendant of ancestor
+     */
+    private function is_descendant_of($item_id, $ancestor_id, $menu_items) {
+        // Find the item
+        $item = null;
+        foreach ($menu_items as $menu_item) {
+            if ($menu_item->ID == $item_id) {
+                $item = $menu_item;
+                break;
+            }
+        }
+
+        if (!$item) {
+            return false;
+        }
+
+        // Check if this item is directly under the ancestor
+        if ($item->menu_item_parent == $ancestor_id) {
+            return true;
+        }
+
+        // If this item has a parent, check if that parent is a descendant of ancestor
+        if ($item->menu_item_parent) {
+            return $this->is_descendant_of($item->menu_item_parent, $ancestor_id, $menu_items);
+        }
+
+        return false;
+    }
+
+    // ========================================================================
     // SHOW CATEGORIES COMMAND
     // ========================================================================
 
