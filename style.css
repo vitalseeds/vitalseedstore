@@ -231,6 +231,15 @@ ul.products li.product:nth-of-type( 2n ) {
     border-radius: 15px 15px 15px 15px;
 }
 
+/* Mega Menu */
+
+.main-navigation ul.nav-menu ul li .textwidget * {
+	all: reset;
+	font-size: 1rem;
+	display: block;
+	width: inherit;
+}
+
 /* GROWING GUIDE */
 
 /* flickity on by default */
