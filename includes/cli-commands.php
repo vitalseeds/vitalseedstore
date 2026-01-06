@@ -30,6 +30,9 @@ if (!defined('WP_CLI') || !WP_CLI) {
  *     # Add multiple specific subcategories (vegetables and flowers)
  *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds --categories=vegetables,flowers --clear-submenu
  *
+ *     # Remove a category from the menu by slug
+ *     $ wp vitalseedstore menu remove_category primary vegetable-seeds
+ *
  *     # Add categories under an existing menu item
  *     $ wp vitalseedstore menu populate primary --parent-menu-item="Shop" --parent-category=seeds
  *
@@ -346,6 +349,46 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         foreach ($menu_items as $item) {
             if ($item->title === $title) {
                 return $item->ID;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Find a menu item by category slug
+     *
+     * @param int $menu_id The menu term ID
+     * @param string $category_slug The category slug to search for
+     * @param int|null $parent_menu_item_id Optional parent menu item to search under
+     * @return int|false Menu item ID if found, false otherwise
+     */
+    private function find_menu_item_by_category_slug($menu_id, $category_slug, $parent_menu_item_id = null) {
+        $menu_items = wp_get_nav_menu_items($menu_id);
+        if (!$menu_items) {
+            return false;
+        }
+
+        // Get the category by slug
+        $category = get_term_by('slug', $category_slug, 'product_cat');
+        if (!$category) {
+            return false;
+        }
+
+        foreach ($menu_items as $item) {
+            // Check if this is a category menu item pointing to our target category
+            if ($item->type === 'taxonomy' &&
+                $item->object === 'product_cat' &&
+                $item->object_id == $category->term_id) {
+
+                // If parent menu item is specified, only return items under it
+                if ($parent_menu_item_id !== null) {
+                    if ($this->is_descendant_of($item->ID, $parent_menu_item_id, $menu_items)) {
+                        return $item->ID;
+                    }
+                } else {
+                    return $item->ID;
+                }
             }
         }
 
@@ -1213,10 +1256,13 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * : The menu slug, ID, or name
      *
      * <parent-menu-item>
-     * : The parent menu item title
+     * : The parent menu item title (or category slug if using --category-slug)
      *
      * <suffix>
      * : The suffix to remove from menu item titles
+     *
+     * [--category-slug]
+     * : Treat parent-menu-item as a category slug instead of title
      *
      * [--case-insensitive]
      * : Perform case-insensitive suffix matching
@@ -1232,6 +1278,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # Remove " - Organic" suffix from all items under "Shop"
      *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic"
      *
+     *     # Remove suffix using category slug (more reliable)
+     *     wp vitalseedstore menu remove_suffix primary vegetable-seeds " Seeds" --category-slug
+     *
      *     # Remove suffix case-insensitively (matches " - ORGANIC", " - organic", etc.)
      *     wp vitalseedstore menu remove_suffix primary "Shop" " - Organic" --case-insensitive
      *
@@ -1244,11 +1293,12 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @when after_wp_load
      */
     public function remove_suffix($args, $assoc_args) {
-        list($menu_identifier, $parent_menu_item_title, $suffix) = $args;
+        list($menu_identifier, $parent_menu_item_identifier, $suffix) = $args;
 
         $dry_run = isset($assoc_args['dry-run']);
         $skip_confirm = isset($assoc_args['yes']);
         $case_insensitive = isset($assoc_args['case-insensitive']);
+        $use_category_slug = isset($assoc_args['category-slug']);
 
         // Get the menu object
         $menu = $this->get_menu($menu_identifier);
@@ -1258,13 +1308,20 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
 
-        // Find parent menu item
-        $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
-        if (!$parent_menu_item_id) {
-            WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+        // Find parent menu item (by slug or title)
+        if ($use_category_slug) {
+            $parent_menu_item_id = $this->find_menu_item_by_category_slug($menu->term_id, $parent_menu_item_identifier);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("No menu item found for category '$parent_menu_item_identifier'.");
+            }
+            WP_CLI::log("Finding all descendant items under category: $parent_menu_item_identifier (ID: $parent_menu_item_id)");
+        } else {
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_identifier);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item_identifier' not found in menu.");
+            }
+            WP_CLI::log("Finding all descendant items under: $parent_menu_item_identifier (ID: $parent_menu_item_id)");
         }
-
-        WP_CLI::log("Finding all descendant items under: $parent_menu_item_title (ID: $parent_menu_item_id)");
 
         // Get all descendants recursively
         $menu_items = wp_get_nav_menu_items($menu->term_id);
@@ -1374,7 +1431,10 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * : The menu slug, ID, or name
      *
      * <parent-menu-item>
-     * : The parent menu item title to start from
+     * : The parent menu item title (or category slug if using --category-slug)
+     *
+     * [--category-slug]
+     * : Treat parent-menu-item as a category slug instead of title
      *
      * [--dry-run]
      * : Preview what would be changed without actually modifying
@@ -1388,6 +1448,9 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      *     # (handles both "Black Beans" and "Red Bean" under "Beans" parent)
      *     wp vitalseedstore menu strip_categories primary "Shop"
      *
+     *     # Strip using category slug (more reliable)
+     *     wp vitalseedstore menu strip_categories primary vegetable-seeds --category-slug
+     *
      *     # Preview changes without modifying
      *     wp vitalseedstore menu strip_categories primary "Shop" --dry-run
      *
@@ -1397,10 +1460,11 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
      * @when after_wp_load
      */
     public function strip_categories($args, $assoc_args) {
-        list($menu_identifier, $parent_menu_item_title) = $args;
+        list($menu_identifier, $parent_menu_item_identifier) = $args;
 
         $dry_run = isset($assoc_args['dry-run']);
         $skip_confirm = isset($assoc_args['yes']);
+        $use_category_slug = isset($assoc_args['category-slug']);
 
         // Get the menu object
         $menu = $this->get_menu($menu_identifier);
@@ -1410,13 +1474,20 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
 
         WP_CLI::log("Working with menu: {$menu->name} (ID: {$menu->term_id})");
 
-        // Find parent menu item
-        $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_title);
-        if (!$parent_menu_item_id) {
-            WP_CLI::error("Parent menu item '$parent_menu_item_title' not found in menu.");
+        // Find parent menu item (by slug or title)
+        if ($use_category_slug) {
+            $parent_menu_item_id = $this->find_menu_item_by_category_slug($menu->term_id, $parent_menu_item_identifier);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("No menu item found for category '$parent_menu_item_identifier'.");
+            }
+            WP_CLI::log("Finding all descendant items under category: $parent_menu_item_identifier (ID: $parent_menu_item_id)");
+        } else {
+            $parent_menu_item_id = $this->find_menu_item_by_title($menu->term_id, $parent_menu_item_identifier);
+            if (!$parent_menu_item_id) {
+                WP_CLI::error("Parent menu item '$parent_menu_item_identifier' not found in menu.");
+            }
+            WP_CLI::log("Finding all descendant items under: $parent_menu_item_identifier (ID: $parent_menu_item_id)");
         }
-
-        WP_CLI::log("Finding all descendant items under: $parent_menu_item_title (ID: $parent_menu_item_id)");
 
         // Get all menu items and descendants
         $menu_items = wp_get_nav_menu_items($menu->term_id);
@@ -1891,25 +1962,29 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
         $seed_categories = array(
             array(
                 'slug' => 'vegetable-seeds',
-                'title' => 'Vegetable Seeds',
+                'parent' => 'seeds',
+                'suffix' => ' Seeds',
             ),
             array(
                 'slug' => 'flower-seeds',
-                'title' => 'Flower Seeds',
+                'parent' => 'seeds',
+                'suffix' => ' Seeds',
             ),
             array(
                 'slug' => 'culinary-herbs',
-                'title' => 'Culinary Herbs',
+                'parent' => 'herb-seeds',
+                'suffix' => ' Seeds',
             ),
             array(
                 'slug' => 'medicinal-herbs',
-                'title' => 'Medicinal Herbs',
+                'parent' => 'herb-seeds',
+                'suffix' => ' Seeds',
             ),
         );
 
         foreach ($seed_categories as $category) {
             WP_CLI::log("----------------------------------------");
-            WP_CLI::log("Processing: {$category['title']}");
+            WP_CLI::log("Processing: {$category['slug']}");
             WP_CLI::log("----------------------------------------");
 
             // Step 1: Populate menu with category
@@ -1917,7 +1992,7 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             $populate_args = array($menu_identifier);
             $populate_assoc_args = array(
                 'parent-menu-item' => $parent_menu_item,
-                'parent-category' => 'seeds',
+                'parent-category' => $category['parent'],
                 'categories' => $category['slug'],
                 'clear-submenu' => true,
                 'megamenu-submenu-display-mode' => 'grid4',
@@ -1928,24 +2003,26 @@ class Vitalseedstore_Menu_Command extends WP_CLI_Command {
             $this->populate($populate_args, $populate_assoc_args);
 
             if (!$dry_run) {
-                // Step 2: Remove " Seeds" suffix
-                WP_CLI::log("\n2. Removing ' Seeds' suffix from {$category['title']} items...");
-                $remove_suffix_args = array($menu_identifier, $category['title'], ' Seeds');
+                // Step 2: Remove suffix (using category slug for reliability)
+                WP_CLI::log("\n2. Removing '{$category['suffix']}' suffix from {$category['slug']} items...");
+                $remove_suffix_args = array($menu_identifier, $category['slug'], $category['suffix']);
                 $remove_suffix_assoc_args = array(
+                    'category-slug' => true,
                     'case-insensitive' => true,
                     'yes' => true,
                 );
                 $this->remove_suffix($remove_suffix_args, $remove_suffix_assoc_args);
 
-                // Step 3: Strip parent category names
-                WP_CLI::log("\n3. Stripping parent category names from {$category['title']} items...");
-                $strip_args = array($menu_identifier, $category['title']);
+                // Step 3: Strip parent category names (using category slug for reliability)
+                WP_CLI::log("\n3. Stripping parent category names from {$category['slug']} items...");
+                $strip_args = array($menu_identifier, $category['slug']);
                 $strip_assoc_args = array(
+                    'category-slug' => true,
                     'yes' => true,
                 );
                 $this->strip_categories($strip_args, $strip_assoc_args);
             } else {
-                WP_CLI::log("\n[DRY RUN] Would remove ' Seeds' suffix");
+                WP_CLI::log("\n[DRY RUN] Would remove '{$category['suffix']}' suffix");
                 WP_CLI::log("[DRY RUN] Would strip parent category names");
             }
 
