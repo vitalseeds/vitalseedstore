@@ -186,25 +186,28 @@ function vs_product_search_shortcode($atts) {
 add_shortcode('vs_product_search', 'vs_product_search_shortcode');
 
 /**
- * Add search button to header
+ * Add search button as last item in primary navigation menu
  */
-function vs_add_header_search() {
+function vs_add_search_to_nav_menu($items, $args) {
+    // Only add to primary menu
+    if ($args->theme_location !== 'primary') {
+        return $items;
+    }
+
     vs_enqueue_product_search_assets();
     $version = get_option('vs_product_search_version', time());
-    ?>
-    <div class="vs-header-search">
-        <button class="vs-search-button vs-search-button--header" data-vs-search-trigger>
-            <span class="screen-reader-text"><?php esc_html_e('Search', 'vitalseedstore'); ?></span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        </button>
-        <product-search-popup
-            data-version="<?php echo esc_attr($version); ?>"
-            data-placeholder="<?php esc_attr_e('Search seeds...', 'vitalseedstore'); ?>">
-        </product-search-popup>
-    </div>
-    <?php
+
+    $search_item = '<li class="menu-item vs-search-menu-item">';
+    $search_item .= '<button class="vs-search-button vs-search-button--header" data-vs-search-trigger>';
+    $search_item .= '<span class="screen-reader-text">' . esc_html__('Search', 'vitalseedstore') . '</span>';
+    $search_item .= '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+    $search_item .= '</button>';
+    $search_item .= '<product-search-popup data-version="' . esc_attr($version) . '" data-placeholder="' . esc_attr__('Search seeds...', 'vitalseedstore') . '"></product-search-popup>';
+    $search_item .= '</li>';
+
+    return $items . $search_item;
 }
-add_action('storefront_header', 'vs_add_header_search', 45);
+add_filter('wp_nav_menu_items', 'vs_add_search_to_nav_menu', 10, 2);
 
 /**
  * Enqueue search assets (called when shortcode or header search is used)
