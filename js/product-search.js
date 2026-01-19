@@ -17,6 +17,7 @@ class ProductSearchPopup extends HTMLElement {
         this.flexIndex = null;
         this.debounceTimer = null;
         this.initialized = false;
+        this.selectedIndex = -1;
 
         this.render();
         this.setupEventListeners();
@@ -110,7 +111,7 @@ class ProductSearchPopup extends HTMLElement {
                 }
 
                 .search-item:hover,
-                .search-item:focus {
+                .search-item.selected {
                     background: #f3f4f6;
                     outline: none;
                 }
@@ -184,6 +185,18 @@ class ProductSearchPopup extends HTMLElement {
                     color: #6b7280;
                 }
 
+                .sr-only {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    padding: 0;
+                    margin: -1px;
+                    overflow: hidden;
+                    clip: rect(0, 0, 0, 0);
+                    white-space: nowrap;
+                    border: 0;
+                }
+
                 @media (max-width: 640px) {
                     :host {
                         padding-top: 20px;
@@ -201,8 +214,9 @@ class ProductSearchPopup extends HTMLElement {
             </style>
             <div id="container">
                 <button id="close" aria-label="Close search">&times;</button>
-                <input id="search" type="search" placeholder="${this.escapeHtml(this.placeholder)}" autocomplete="off">
-                <div id="results" role="listbox"></div>
+                <input id="search" type="search" placeholder="${this.escapeHtml(this.placeholder)}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list">
+                <div id="results" role="listbox" aria-label="Search results"></div>
+                <div id="status" role="status" aria-live="polite" class="sr-only"></div>
                 <div id="loading" hidden>Loading search index...</div>
             </div>
         `;
@@ -367,10 +381,16 @@ class ProductSearchPopup extends HTMLElement {
 
     search(query) {
         const resultsEl = this.shadowRoot.getElementById('results');
+        const searchInput = this.shadowRoot.getElementById('search');
+        const statusEl = this.shadowRoot.getElementById('status');
         console.log('[VS Search] Searching for:', query);
+        this.selectedIndex = -1; // Reset selection on new search
+        searchInput.removeAttribute('aria-activedescendant');
 
         if (!query || query.length < 2) {
             resultsEl.innerHTML = '';
+            searchInput.setAttribute('aria-expanded', 'false');
+            statusEl.textContent = '';
             return;
         }
 
@@ -386,10 +406,15 @@ class ProductSearchPopup extends HTMLElement {
 
         if (ids.length === 0) {
             resultsEl.innerHTML = '<div class="no-results">No results found</div>';
+            searchInput.setAttribute('aria-expanded', 'false');
+            statusEl.textContent = 'No results found';
             return;
         }
 
-        resultsEl.innerHTML = ids.map(id => {
+        searchInput.setAttribute('aria-expanded', 'true');
+        statusEl.textContent = `${ids.length} result${ids.length === 1 ? '' : 's'} found`;
+
+        resultsEl.innerHTML = ids.map((id, index) => {
             const item = this.items.find(x => x.id === id);
             if (!item) return '';
 
@@ -405,7 +430,7 @@ class ProductSearchPopup extends HTMLElement {
             }
 
             return `
-                <a href="${this.escapeHtml(item.url)}" class="search-item" role="option">
+                <a href="${this.escapeHtml(item.url)}" class="search-item" role="option" id="result-${index}" aria-selected="false">
                     <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">
                     <div class="item-content">
                         <span class="title">${this.highlight(item.title, query)}</span>
@@ -430,19 +455,40 @@ class ProductSearchPopup extends HTMLElement {
         const results = this.shadowRoot.querySelectorAll('.search-item');
         if (results.length === 0) return;
 
-        const current = this.shadowRoot.querySelector('.search-item:focus');
-        let index = Array.from(results).indexOf(current);
-
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            index = index < results.length - 1 ? index + 1 : 0;
-            results[index].focus();
+            this.selectedIndex = this.selectedIndex < results.length - 1 ? this.selectedIndex + 1 : 0;
+            this.updateSelection(results);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            index = index > 0 ? index - 1 : results.length - 1;
-            results[index].focus();
-        } else if (e.key === 'Enter' && current) {
-            current.click();
+            this.selectedIndex = this.selectedIndex > 0 ? this.selectedIndex - 1 : results.length - 1;
+            this.updateSelection(results);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            // If a result is selected, click it; otherwise if only one result, go to it
+            if (this.selectedIndex >= 0 && results[this.selectedIndex]) {
+                results[this.selectedIndex].click();
+            } else if (results.length === 1) {
+                results[0].click();
+            }
+        }
+    }
+
+    updateSelection(results) {
+        const searchInput = this.shadowRoot.getElementById('search');
+
+        results.forEach((item, i) => {
+            const isSelected = i === this.selectedIndex;
+            item.classList.toggle('selected', isSelected);
+            item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+
+        // Update aria-activedescendant and scroll into view
+        if (this.selectedIndex >= 0 && results[this.selectedIndex]) {
+            searchInput.setAttribute('aria-activedescendant', `result-${this.selectedIndex}`);
+            results[this.selectedIndex].scrollIntoView({ block: 'nearest' });
+        } else {
+            searchInput.removeAttribute('aria-activedescendant');
         }
     }
 }
