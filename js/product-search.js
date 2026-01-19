@@ -1,0 +1,460 @@
+/**
+ * Product Search Web Component
+ *
+ * Uses FlexSearch for fast client-side search with IndexedDB caching.
+ * Searches both products and categories.
+ */
+class ProductSearchPopup extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+
+        this.dataVersion = this.getAttribute('data-version') || '0';
+        this.placeholder = this.getAttribute('data-placeholder') || 'Search products...';
+
+        this.items = [];
+        this.db = null;
+        this.flexIndex = null;
+        this.debounceTimer = null;
+        this.initialized = false;
+
+        this.render();
+        this.setupEventListeners();
+    }
+
+    connectedCallback() {
+        // Initialize when element is added to DOM (libraries should be loaded by then)
+        console.log('[VS Search] Component connected to DOM');
+        if (!this.initialized) {
+            this.initialized = true;
+            this.initDatabase();
+        }
+    }
+
+    render() {
+        this.shadowRoot.innerHTML = `
+            <style>
+                :host {
+                    display: none;
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    justify-content: center;
+                    align-items: flex-start;
+                    padding-top: 80px;
+                    z-index: 99999;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                }
+
+                #container {
+                    background: white;
+                    padding: 1.5rem;
+                    border-radius: 8px;
+                    width: 90%;
+                    max-width: 600px;
+                    position: relative;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                }
+
+                #close {
+                    position: absolute;
+                    top: 0.75rem;
+                    right: 0.75rem;
+                    background: transparent;
+                    border: none;
+                    font-size: 1.5rem;
+                    cursor: pointer;
+                    color: #666;
+                    width: 32px;
+                    height: 32px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 4px;
+                }
+
+                #close:hover {
+                    background: #f3f4f6;
+                    color: #333;
+                }
+
+                #search {
+                    width: 100%;
+                    padding: 0.75rem 1rem;
+                    font-size: 1.1rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 6px;
+                    outline: none;
+                    box-sizing: border-box;
+                }
+
+                #search:focus {
+                    border-color: #2c6e49;
+                    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0.1);
+                }
+
+                #results {
+                    max-height: 400px;
+                    overflow-y: auto;
+                    margin-top: 0.5rem;
+                }
+
+                .search-item {
+                    display: flex;
+                    align-items: center;
+                    padding: 0.75rem;
+                    border-radius: 6px;
+                    text-decoration: none;
+                    color: inherit;
+                    transition: background-color 0.15s;
+                }
+
+                .search-item:hover,
+                .search-item:focus {
+                    background: #f3f4f6;
+                    outline: none;
+                }
+
+                .search-item img {
+                    width: 50px;
+                    height: 50px;
+                    object-fit: cover;
+                    border-radius: 4px;
+                    margin-right: 0.75rem;
+                    flex-shrink: 0;
+                }
+
+                .item-content {
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .title {
+                    display: block;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 0.25rem;
+                }
+
+                .title mark {
+                    background: #fef08a;
+                    color: inherit;
+                    padding: 0 2px;
+                    border-radius: 2px;
+                }
+
+                .meta {
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                }
+
+                .type-badge {
+                    display: inline-block;
+                    padding: 0.125rem 0.5rem;
+                    border-radius: 9999px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    margin-right: 0.5rem;
+                }
+
+                .type-badge--product {
+                    background: #dbeafe;
+                    color: #1e40af;
+                }
+
+                .type-badge--category {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+
+                .count-badge {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                }
+
+                .no-results {
+                    padding: 2rem;
+                    text-align: center;
+                    color: #6b7280;
+                }
+
+                #loading {
+                    padding: 2rem;
+                    text-align: center;
+                    color: #6b7280;
+                }
+
+                @media (max-width: 640px) {
+                    :host {
+                        padding-top: 20px;
+                    }
+
+                    #container {
+                        width: 95%;
+                        padding: 1rem;
+                    }
+
+                    #results {
+                        max-height: 60vh;
+                    }
+                }
+            </style>
+            <div id="container">
+                <button id="close" aria-label="Close search">&times;</button>
+                <input id="search" type="search" placeholder="${this.escapeHtml(this.placeholder)}" autocomplete="off">
+                <div id="results" role="listbox"></div>
+                <div id="loading" hidden>Loading search index...</div>
+            </div>
+        `;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    setupEventListeners() {
+        this.shadowRoot.getElementById('close').addEventListener('click', () => this.hide());
+
+        const searchInput = this.shadowRoot.getElementById('search');
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(this.debounceTimer);
+            const value = e.target.value; // Capture value immediately before debounce
+            this.debounceTimer = setTimeout(() => this.search(value), 150);
+        });
+
+        this.addEventListener('click', (e) => {
+            if (e.target === this) this.hide();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.style.display === 'flex') {
+                this.hide();
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => this.handleKeyNav(e));
+    }
+
+    async initDatabase() {
+        const DB_NAME = 'vs-product-search';
+        const DB_VERSION = 1;
+        const loadingEl = this.shadowRoot.getElementById('loading');
+
+        console.log('[VS Search] Initializing database...');
+        console.log('[VS Search] idb available:', typeof idb !== 'undefined');
+        console.log('[VS Search] FlexSearch available:', typeof FlexSearch !== 'undefined');
+
+        // Wait for libraries to be available
+        if (typeof idb === 'undefined' || typeof FlexSearch === 'undefined') {
+            console.log('[VS Search] Libraries not ready, retrying in 100ms...');
+            loadingEl.textContent = 'Loading search libraries...';
+            loadingEl.hidden = false;
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return this.initDatabase(); // Retry
+        }
+
+        try {
+            console.log('[VS Search] Opening IndexedDB...');
+            this.db = await idb.openDB(DB_NAME, DB_VERSION, {
+                upgrade(db) {
+                    console.log('[VS Search] Upgrading IndexedDB schema...');
+                    if (!db.objectStoreNames.contains('items')) {
+                        db.createObjectStore('items', { keyPath: 'id' });
+                    }
+                    if (!db.objectStoreNames.contains('meta')) {
+                        db.createObjectStore('meta', { keyPath: 'key' });
+                    }
+                }
+            });
+            console.log('[VS Search] IndexedDB opened successfully');
+
+            this.flexIndex = new FlexSearch.Index({
+                tokenize: 'forward',
+                cache: 100,
+                resolution: 9
+            });
+            console.log('[VS Search] FlexSearch index created');
+
+            await this.loadItems();
+        } catch (error) {
+            console.error('[VS Search] Failed to initialize:', error);
+            loadingEl.textContent = 'Failed to initialize search. Check console for details.';
+            loadingEl.hidden = false;
+        }
+    }
+
+    async loadItems() {
+        const loadingEl = this.shadowRoot.getElementById('loading');
+
+        console.log('[VS Search] Loading items...');
+        console.log('[VS Search] vsProductSearch config:', window.vsProductSearch);
+
+        try {
+            const cachedMeta = await this.db.get('meta', 'version');
+            const serverVersion = window.vsProductSearch?.version?.toString() || this.dataVersion;
+            console.log('[VS Search] Cached version:', cachedMeta?.value, 'Server version:', serverVersion);
+
+            if (cachedMeta && cachedMeta.value === serverVersion) {
+                console.log('[VS Search] Using cached data');
+                this.items = await this.db.getAll('items');
+            } else {
+                console.log('[VS Search] Fetching fresh data...');
+                loadingEl.hidden = false;
+
+                const jsonUrl = window.vsProductSearch?.jsonUrl || '/wp-content/uploads/search-index.json';
+                console.log('[VS Search] Fetching from:', jsonUrl);
+                const response = await fetch(jsonUrl);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Search index not found. Please run: wp eval "vs_export_products_json();"');
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[VS Search] Received', data.items?.length, 'items');
+
+                const tx = this.db.transaction(['items', 'meta'], 'readwrite');
+                const itemStore = tx.objectStore('items');
+                const metaStore = tx.objectStore('meta');
+
+                await itemStore.clear();
+                for (const item of data.items) {
+                    await itemStore.put(item);
+                }
+                await metaStore.put({ key: 'version', value: data.version.toString() });
+                await tx.done;
+
+                this.items = data.items;
+                loadingEl.hidden = true;
+            }
+
+            console.log('[VS Search] Building search index with', this.items.length, 'items');
+            this.items.forEach(item => {
+                const searchText = [
+                    item.title,
+                    item.sku,
+                    ...(item.category || [])
+                ].filter(Boolean).join(' ');
+                this.flexIndex.add(item.id, searchText);
+            });
+            console.log('[VS Search] Search index ready');
+
+        } catch (error) {
+            console.error('[VS Search] Failed to load items:', error);
+            loadingEl.textContent = error.message || 'Failed to load search data.';
+            loadingEl.hidden = false;
+        }
+    }
+
+    show() {
+        this.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        const searchInput = this.shadowRoot.getElementById('search');
+        searchInput.value = '';
+        this.shadowRoot.getElementById('results').innerHTML = '';
+        setTimeout(() => searchInput.focus(), 50);
+    }
+
+    hide() {
+        this.style.display = 'none';
+        document.body.style.overflow = '';
+        this.shadowRoot.getElementById('results').innerHTML = '';
+    }
+
+    search(query) {
+        const resultsEl = this.shadowRoot.getElementById('results');
+        console.log('[VS Search] Searching for:', query);
+
+        if (!query || query.length < 2) {
+            resultsEl.innerHTML = '';
+            return;
+        }
+
+        if (!this.flexIndex) {
+            console.log('[VS Search] Index not ready yet');
+            resultsEl.innerHTML = '<div class="no-results">Search is loading...</div>';
+            return;
+        }
+
+        console.log('[VS Search] Items count:', this.items.length);
+        const ids = this.flexIndex.search(query, { limit: 15 });
+        console.log('[VS Search] Found', ids.length, 'results:', ids);
+
+        if (ids.length === 0) {
+            resultsEl.innerHTML = '<div class="no-results">No results found</div>';
+            return;
+        }
+
+        resultsEl.innerHTML = ids.map(id => {
+            const item = this.items.find(x => x.id === id);
+            if (!item) return '';
+
+            const isCategory = item.type === 'category';
+            const badgeClass = isCategory ? 'type-badge--category' : 'type-badge--product';
+            const badgeText = isCategory ? 'Category' : 'Product';
+
+            let meta = '';
+            if (isCategory) {
+                meta = `<span class="count-badge">${item.count} products</span>`;
+            } else if (item.category && item.category.length > 0) {
+                meta = item.category.join(', ');
+            }
+
+            return `
+                <a href="${this.escapeHtml(item.url)}" class="search-item" role="option">
+                    <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">
+                    <div class="item-content">
+                        <span class="title">${this.highlight(item.title, query)}</span>
+                        <div class="meta">
+                            <span class="type-badge ${badgeClass}">${badgeText}</span>
+                            ${meta}
+                        </div>
+                    </div>
+                </a>
+            `;
+        }).join('');
+    }
+
+    highlight(text, query) {
+        if (!text) return '';
+        const escaped = this.escapeHtml(text);
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return escaped.replace(regex, '<mark>$1</mark>');
+    }
+
+    handleKeyNav(e) {
+        const results = this.shadowRoot.querySelectorAll('.search-item');
+        if (results.length === 0) return;
+
+        const current = this.shadowRoot.querySelector('.search-item:focus');
+        let index = Array.from(results).indexOf(current);
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            index = index < results.length - 1 ? index + 1 : 0;
+            results[index].focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            index = index > 0 ? index - 1 : results.length - 1;
+            results[index].focus();
+        } else if (e.key === 'Enter' && current) {
+            current.click();
+        }
+    }
+}
+
+customElements.define('product-search-popup', ProductSearchPopup);
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-vs-search-trigger]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const popup = document.querySelector('product-search-popup');
+            if (popup) popup.show();
+        });
+    });
+});

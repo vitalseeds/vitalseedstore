@@ -98,3 +98,4 @@ include_once('includes/invoices.php');
 include_once('includes/growing_guide.php');
 include_once('includes/sowing_calendar.php');
 include_once('includes/cli-commands.php');
+include_once('includes/product-search.php');

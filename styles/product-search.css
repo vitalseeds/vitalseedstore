@@ -1,0 +1,65 @@
+/**
+ * Product Search Styles
+ *
+ * Styles for the search trigger button.
+ * Modal styles are encapsulated in the Shadow DOM.
+ */
+
+/* Base search button */
+.vs-search-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.vs-search-button:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.vs-search-button:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.vs-search-button svg {
+    display: block;
+}
+
+/* Header search wrapper */
+.vs-header-search {
+    display: flex;
+    align-items: center;
+}
+
+/* Header-specific button styling */
+.vs-search-button--header {
+    padding: 0.625rem;
+}
+
+/* Position in Storefront header */
+.site-header .vs-header-search {
+    margin-left: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+    .site-header .vs-header-search {
+        margin-left: 0.5rem;
+    }
+
+    .vs-search-button--header {
+        padding: 0.5rem;
+    }
+
+    .vs-search-button--header svg {
+        width: 18px;
+        height: 18px;
+    }
+}
