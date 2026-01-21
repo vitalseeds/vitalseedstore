@@ -149,23 +149,18 @@ class ProductSearchPopup extends HTMLElement {
                     color: #6b7280;
                 }
 
-                .type-badge {
-                    display: inline-block;
-                    padding: 0.125rem 0.5rem;
-                    border-radius: 9999px;
+                .section-heading {
                     font-size: 0.75rem;
-                    font-weight: 500;
-                    margin-right: 0.5rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: #6b7280;
+                    padding: 0.75rem 0.75rem 0.5rem;
+                    margin-top: 0.5rem;
                 }
 
-                .type-badge--product {
-                    background: #dbeafe;
-                    color: #1e40af;
-                }
-
-                .type-badge--category {
-                    background: #d1fae5;
-                    color: #065f46;
+                .section-heading:first-child {
+                    margin-top: 0;
                 }
 
                 .count-badge {
@@ -414,34 +409,50 @@ class ProductSearchPopup extends HTMLElement {
         searchInput.setAttribute('aria-expanded', 'true');
         statusEl.textContent = `${ids.length} result${ids.length === 1 ? '' : 's'} found`;
 
-        resultsEl.innerHTML = ids.map((id, index) => {
-            const item = this.items.find(x => x.id === id);
-            if (!item) return '';
+        // Group results by type: categories first, then products
+        const results = ids.map(id => this.items.find(x => x.id === id)).filter(Boolean);
+        const categories = results.filter(item => item.type === 'category');
+        const products = results.filter(item => item.type !== 'category');
 
-            const isCategory = item.type === 'category';
-            const badgeClass = isCategory ? 'type-badge--category' : 'type-badge--product';
-            const badgeText = isCategory ? 'Category' : 'Product';
+        let html = '';
+        let resultIndex = 0;
 
-            let meta = '';
-            if (isCategory) {
-                meta = `<span class="count-badge">${item.count} products</span>`;
-            } else if (item.category && item.category.length > 0) {
-                meta = item.category.join(', ');
-            }
-
-            return `
-                <a href="${this.escapeHtml(item.url)}" class="search-item" role="option" id="result-${index}" aria-selected="false">
-                    <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">
-                    <div class="item-content">
-                        <span class="title">${this.highlight(item.title, query)}</span>
-                        <div class="meta">
-                            <span class="type-badge ${badgeClass}">${badgeText}</span>
-                            ${meta}
+        if (categories.length > 0) {
+            html += '<div class="section-heading">Categories</div>';
+            html += categories.map(item => {
+                const index = resultIndex++;
+                return `
+                    <a href="${this.escapeHtml(item.url)}" class="search-item" role="option" id="result-${index}" aria-selected="false">
+                        <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">
+                        <div class="item-content">
+                            <span class="title">${this.highlight(item.title, query)}</span>
+                            <div class="meta">
+                                <span class="count-badge">${item.count} products</span>
+                            </div>
                         </div>
-                    </div>
-                </a>
-            `;
-        }).join('');
+                    </a>
+                `;
+            }).join('');
+        }
+
+        if (products.length > 0) {
+            html += '<div class="section-heading">Products</div>';
+            html += products.map(item => {
+                const index = resultIndex++;
+                const meta = item.category && item.category.length > 0 ? item.category.join(', ') : '';
+                return `
+                    <a href="${this.escapeHtml(item.url)}" class="search-item" role="option" id="result-${index}" aria-selected="false">
+                        <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">
+                        <div class="item-content">
+                            <span class="title">${this.highlight(item.title, query)}</span>
+                            <div class="meta">${meta}</div>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        resultsEl.innerHTML = html;
     }
 
     highlight(text, query) {
