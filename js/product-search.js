@@ -345,6 +345,7 @@ class ProductSearchPopup extends HTMLElement {
             this.items.forEach(item => {
                 const searchText = [
                     item.title,
+                    item.latin_name,
                     item.sku,
                     ...(item.category || [])
                 ].filter(Boolean).join(' ');
@@ -439,7 +440,7 @@ class ProductSearchPopup extends HTMLElement {
             html += '<div class="section-heading">Products</div>';
             html += products.map(item => {
                 const index = resultIndex++;
-                const meta = item.category && item.category.length > 0 ? item.category.join(', ') : '';
+                const meta = item.latin_name ? `<em>${this.escapeHtml(item.latin_name)}</em>` : '';
                 return `
                     <a href="${this.escapeHtml(item.url)}" class="search-item" role="option" id="result-${index}" aria-selected="false">
                         <img src="${this.escapeHtml(item.thumbnail)}" alt="" loading="lazy">

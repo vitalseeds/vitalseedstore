@@ -100,10 +100,13 @@ function vs_get_products_for_search() {
             }
         }
 
+        $latin_name = get_field('latin_name', $product_id);
+
         $products[] = [
             'id' => 'product-' . $product_id,
             'type' => 'product',
             'title' => $product->get_name(),
+            'latin_name' => $latin_name ?: null,
             'url' => get_permalink($product_id),
             'thumbnail' => $thumbnail_url,
             'category' => $categories,
