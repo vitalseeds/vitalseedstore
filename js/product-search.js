@@ -515,4 +515,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (popup) popup.show();
         });
     });
+
+    // Hide the old mega menu search button (replaced by custom search)
+    const oldSearchLink = document.querySelector('.mega-menu-link.dashicons-search');
+    if (oldSearchLink && oldSearchLink.closest('.mega-menu-item')) {
+        oldSearchLink.closest('.mega-menu-item').style.display = 'none';
+    }
 });
