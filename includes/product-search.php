@@ -177,7 +177,7 @@ function vs_product_search_shortcode($atts) {
     ?>
     <button class="<?php echo esc_attr($atts['button_class']); ?>" data-vs-search-trigger>
         <span class="screen-reader-text"><?php echo esc_html($atts['button_text']); ?></span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <svg width="20" height="20" class="search-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
     </button>
     <product-search-popup
         data-version="<?php echo esc_attr($version); ?>"
@@ -203,7 +203,7 @@ function vs_add_search_to_nav_menu($items, $args) {
     $search_item = '<li class="menu-item vs-search-menu-item">';
     $search_item .= '<button class="vs-search-button vs-search-button--header" data-vs-search-trigger>';
     $search_item .= '<span class="screen-reader-text">' . esc_html__('Search', 'vitalseedstore') . '</span>';
-    $search_item .= '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+    $search_item .= '<svg width="20" height="20" class="search-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>';
     $search_item .= '</button>';
     $search_item .= '<product-search-popup data-version="' . esc_attr($version) . '" data-placeholder="' . esc_attr__('Search seeds...', 'vitalseedstore') . '"></product-search-popup>';
     $search_item .= '</li>';
