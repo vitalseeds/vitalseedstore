@@ -208,7 +208,7 @@ class ProductSearchPopup extends HTMLElement {
                 }
             </style>
             <div id="container">
-                <button id="close" aria-label="Close search">&times;</button>
+                <button id="close" class="sr-only" aria-label="Close search">Close search</button>
                 <input id="search" type="search" placeholder="${this.escapeHtml(this.placeholder)}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list">
                 <div id="results" role="listbox" aria-label="Search results"></div>
                 <div id="status" role="status" aria-live="polite" class="sr-only"></div>
