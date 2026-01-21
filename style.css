@@ -383,3 +383,8 @@ figcaption {
 .elementor-widget-container h3 {
 	width: inherit;
 }
+
+
+.vs-search-menu-item {
+	vertical-align: middle;
+}
