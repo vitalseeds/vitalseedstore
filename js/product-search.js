@@ -507,12 +507,31 @@ class ProductSearchPopup extends HTMLElement {
 
 customElements.define('product-search-popup', ProductSearchPopup);
 
+/**
+ * Progressive enhancement: enhance search links to open popup
+ *
+ * Without JS or custom element support, the links navigate to /search as a fallback.
+ * With JS and custom element support, clicks are intercepted to show the search popup.
+ */
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-vs-search-trigger]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    // Bail out if browser doesn't support custom elements - links will work as normal
+    if (!('customElements' in window)) return;
+
+    const triggers = document.querySelectorAll('[data-vs-search-trigger]');
+    if (triggers.length === 0) return;
+
+    // Create popup once, using data from first trigger
+    const firstTrigger = triggers[0];
+    const popup = document.createElement('product-search-popup');
+    popup.setAttribute('data-version', firstTrigger.dataset.vsSearchVersion || '0');
+    popup.setAttribute('data-placeholder', firstTrigger.dataset.vsSearchPlaceholder || 'Search products...');
+    document.body.appendChild(popup);
+
+    // Enhance all trigger links
+    triggers.forEach(link => {
+        link.addEventListener('click', (e) => {
             e.preventDefault();
-            const popup = document.querySelector('product-search-popup');
-            if (popup) popup.show();
+            popup.show();
         });
     });
 

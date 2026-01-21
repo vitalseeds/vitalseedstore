@@ -161,6 +161,9 @@ function vs_get_categories_for_search() {
 
 /**
  * Register the [vs_product_search] shortcode
+ *
+ * Progressive enhancement: renders as a link to /search that works without JS.
+ * JavaScript enhances the link to open the search popup.
  */
 function vs_product_search_shortcode($atts) {
     $atts = shortcode_atts([
@@ -172,24 +175,28 @@ function vs_product_search_shortcode($atts) {
     vs_enqueue_product_search_assets();
 
     $version = get_option('vs_product_search_version', time());
+    $search_url = home_url('/search');
 
     ob_start();
     ?>
-    <button class="<?php echo esc_attr($atts['button_class']); ?>" data-vs-search-trigger>
+    <a href="<?php echo esc_url($search_url); ?>"
+       class="<?php echo esc_attr($atts['button_class']); ?>"
+       data-vs-search-trigger
+       data-vs-search-version="<?php echo esc_attr($version); ?>"
+       data-vs-search-placeholder="<?php echo esc_attr($atts['placeholder']); ?>">
         <span class="screen-reader-text"><?php echo esc_html($atts['button_text']); ?></span>
         <svg width="20" height="20" class="search-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-    </button>
-    <product-search-popup
-        data-version="<?php echo esc_attr($version); ?>"
-        data-placeholder="<?php echo esc_attr($atts['placeholder']); ?>">
-    </product-search-popup>
+    </a>
     <?php
     return ob_get_clean();
 }
 add_shortcode('vs_product_search', 'vs_product_search_shortcode');
 
 /**
- * Add search button as last item in primary navigation menu
+ * Add search link as last item in primary navigation menu
+ *
+ * Progressive enhancement: renders as a link to /search that works without JS.
+ * JavaScript enhances the link to open the search popup.
  */
 function vs_add_search_to_nav_menu($items, $args) {
     // Only add to primary menu
@@ -199,13 +206,14 @@ function vs_add_search_to_nav_menu($items, $args) {
 
     vs_enqueue_product_search_assets();
     $version = get_option('vs_product_search_version', time());
+    $search_url = home_url('/search');
+    $placeholder = esc_attr__('Search', 'vitalseedstore');
 
     $search_item = '<li class="menu-item vs-search-menu-item">';
-    $search_item .= '<button class="vs-search-button vs-search-button--header" data-vs-search-trigger>';
+    $search_item .= '<a href="' . esc_url($search_url) . '" class="vs-search-button vs-search-button--header" data-vs-search-trigger data-vs-search-version="' . esc_attr($version) . '" data-vs-search-placeholder="' . $placeholder . '">';
     $search_item .= '<span class="screen-reader-text">' . esc_html__('Search', 'vitalseedstore') . '</span>';
     $search_item .= '<svg width="20" height="20" class="search-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>';
-    $search_item .= '</button>';
-    $search_item .= '<product-search-popup data-version="' . esc_attr($version) . '" data-placeholder="' . esc_attr__('Search', 'vitalseedstore') . '"></product-search-popup>';
+    $search_item .= '</a>';
     $search_item .= '</li>';
 
     return $items . $search_item;
