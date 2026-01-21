@@ -63,3 +63,41 @@
         height: 18px;
     }
 }
+
+/* Fallback search form on /search page */
+.vs-product-search-form {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 500px;
+}
+
+.vs-search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+.vs-search-input:focus {
+    border-color: #2c6e49;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0.1);
+}
+
+.vs-search-submit {
+    padding: 0.75rem 1.5rem;
+    white-space: nowrap;
+}
+
+.vs-search-form-wrapper {
+    margin-bottom: 2rem;
+}
+
+.vs-search-results {
+    margin-top: 1rem;
+}
+
+.vs-search-results .woocommerce-result-count {
+    margin-bottom: 1rem;
+}

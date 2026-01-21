@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 define('VS_PRODUCT_SEARCH_CRON_HOOK', 'vs_product_search_export');
 
 /**
- * Schedule cron on theme activation
+ * Schedule cron and flush rewrite rules on theme activation
  */
 function vs_product_search_schedule_cron() {
     if (!wp_next_scheduled(VS_PRODUCT_SEARCH_CRON_HOOK)) {
@@ -26,12 +26,52 @@ function vs_product_search_schedule_cron() {
 add_action('after_setup_theme', 'vs_product_search_schedule_cron');
 
 /**
+ * Flush rewrite rules on theme switch to register /search URL
+ */
+function vs_product_search_flush_rewrites() {
+    vs_product_search_rewrite_rule();
+    flush_rewrite_rules();
+}
+add_action('after_switch_theme', 'vs_product_search_flush_rewrites');
+
+/**
  * Clear cron on theme switch
  */
 function vs_product_search_clear_cron() {
     wp_clear_scheduled_hook(VS_PRODUCT_SEARCH_CRON_HOOK);
 }
 add_action('switch_theme', 'vs_product_search_clear_cron');
+
+/**
+ * Register /search rewrite rule
+ */
+function vs_product_search_rewrite_rule() {
+    add_rewrite_rule('^search/?$', 'index.php?vs_search_page=1', 'top');
+}
+add_action('init', 'vs_product_search_rewrite_rule');
+
+/**
+ * Register query var for search page
+ */
+function vs_product_search_query_vars($vars) {
+    $vars[] = 'vs_search_page';
+    return $vars;
+}
+add_filter('query_vars', 'vs_product_search_query_vars');
+
+/**
+ * Load search page template for /search URL
+ */
+function vs_product_search_template($template) {
+    if (get_query_var('vs_search_page')) {
+        $search_template = get_stylesheet_directory() . '/page-search.php';
+        if (file_exists($search_template)) {
+            return $search_template;
+        }
+    }
+    return $template;
+}
+add_filter('template_include', 'vs_product_search_template');
 
 /**
  * Export products and categories to JSON file
