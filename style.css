@@ -188,11 +188,14 @@ h2:target {
 	}
 }
 
-/* FROM parent theme custom_css */
-
 .product_title {
 	color: var(--heading-color);
 	font-weight: 300;
+}
+h3.product-latin-name {
+	font-style: italic;
+	font-family: "Times New Roman", Times, serif;
+	font-family: serif;
 }
 .woocommerce-products-header__title {
 	color: var(--heading-color);
