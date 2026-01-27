@@ -45,6 +45,9 @@ footer .widget .widget-title, .widget .widgettitle {
 		font-size: 25px;
 		text-shadow: 0px 0px 10px #000000;
 }
+.widget-area .widget a:not(.button) {
+  text-decoration:none
+}
 .widget .widget-title, .widget .widgettitle {
     color: var(--heading-color);
 }
