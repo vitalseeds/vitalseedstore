@@ -50,28 +50,54 @@ function render_sowing_calendar_product_report_page() {
 
 	foreach ($products as $product) {
 		$sow_month_parts = get_value_from_field_or_category('vs_calendar_sow_month_parts', $product->ID);
+		$sow_indoors_month_parts = get_value_from_field_or_category('vs_calendar_sow_indoors_month_parts', $product->ID);
+		$sow_outdoors_month_parts = get_value_from_field_or_category('vs_calendar_sow_outdoors_month_parts', $product->ID);
 		$plant_month_parts = get_value_from_field_or_category('vs_calendar_plant_month_parts', $product->ID);
+		$plant_outdoors_month_parts = get_value_from_field_or_category('vs_calendar_plant_outdoors_month_parts', $product->ID);
+		$plant_undercover_month_parts = get_value_from_field_or_category('vs_calendar_plant_undercover_month_parts', $product->ID);
 		$harvest_month_parts = get_value_from_field_or_category('vs_calendar_harvest_month_parts', $product->ID);
+		$bloom_month_parts = get_value_from_field_or_category('vs_calendar_bloom_month_parts', $product->ID);
 
 		$fields = get_fields($product->ID);
 		$has_product_calendar = !empty($fields['vs_calendar_sow_month_parts']) ||
+							 !empty($fields['vs_calendar_sow_indoors_month_parts']) ||
+							 !empty($fields['vs_calendar_sow_outdoors_month_parts']) ||
 							 !empty($fields['vs_calendar_plant_month_parts']) ||
-							 !empty($fields['vs_calendar_harvest_month_parts']);
+							 !empty($fields['vs_calendar_plant_outdoors_month_parts']) ||
+							 !empty($fields['vs_calendar_plant_undercover_month_parts']) ||
+							 !empty($fields['vs_calendar_harvest_month_parts']) ||
+							 !empty($fields['vs_calendar_bloom_month_parts']);
 
 		echo '<tr>';
 		echo '<td><a href="' . get_edit_post_link($product->ID) . '">' . esc_html($product->post_title) . '</a></td>';
 		echo '<td>';
 
-		if ($sow_month_parts || $plant_month_parts || $harvest_month_parts) {
+		$has_any = $sow_month_parts || $sow_indoors_month_parts || $sow_outdoors_month_parts ||
+				   $plant_month_parts || $plant_outdoors_month_parts || $plant_undercover_month_parts ||
+				   $harvest_month_parts || $bloom_month_parts;
+
+		if ($has_any) {
 			$parts = [];
 			if ($sow_month_parts) {
 				$parts[] = 'sow';
 			}
-			if ($plant_month_parts) {
-				$parts[] = 'plant';
+			if ($sow_indoors_month_parts) {
+				$parts[] = 'sow-in';
+			}
+			if ($sow_outdoors_month_parts) {
+				$parts[] = 'sow-out';
+			}
+			if ($plant_outdoors_month_parts) {
+				$parts[] = 'plant-out';
+			}
+			if ($plant_undercover_month_parts) {
+				$parts[] = 'plant-uc';
 			}
 			if ($harvest_month_parts) {
 				$parts[] = 'harvest';
+			}
+			if ($bloom_month_parts) {
+				$parts[] = 'bloom';
 			}
 			echo implode(' | ', $parts);
 			if (!$has_product_calendar) {
@@ -121,10 +147,16 @@ function render_sowing_calendar_category_report_page() {
 	$filter_no_calendar = isset($_GET['filter_no_calendar']) && $_GET['filter_no_calendar'] === '1';
 	if ($filter_no_calendar) {
 		$categories = array_filter($categories, function ($category) {
+			$term_id = 'product_cat_' . $category->term_id;
 			return
-				empty(get_field('vs_calendar_sow_month_parts', 'product_cat_' . $category->term_id)) &&
-				empty(get_field('vs_calendar_plant_month_parts', 'product_cat_' . $category->term_id)) &&
-				empty(get_field('vs_calendar_harvest_month_parts', 'product_cat_' . $category->term_id));
+				empty(get_field('vs_calendar_sow_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_sow_indoors_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_sow_outdoors_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_plant_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_plant_outdoors_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_plant_undercover_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_harvest_month_parts', $term_id)) &&
+				empty(get_field('vs_calendar_bloom_month_parts', $term_id));
 		});
 	}
 
@@ -162,10 +194,16 @@ function render_sowing_calendar_category_report_page() {
 	echo '<tbody>';
 
 	foreach ($categories as $category) {
+		$term_id = 'product_cat_' . $category->term_id;
 
-		$sow_month_parts = get_field('vs_calendar_sow_month_parts', 'product_cat_' . $category->term_id);
-		$plant_month_parts = get_field('vs_calendar_plant_month_parts', 'product_cat_' . $category->term_id);
-		$harvest_month_parts = get_field('vs_calendar_harvest_month_parts', 'product_cat_' . $category->term_id);
+		$sow_month_parts = get_field('vs_calendar_sow_month_parts', $term_id);
+		$sow_indoors_month_parts = get_field('vs_calendar_sow_indoors_month_parts', $term_id);
+		$sow_outdoors_month_parts = get_field('vs_calendar_sow_outdoors_month_parts', $term_id);
+		$plant_month_parts = get_field('vs_calendar_plant_month_parts', $term_id);
+		$plant_outdoors_month_parts = get_field('vs_calendar_plant_outdoors_month_parts', $term_id);
+		$plant_undercover_month_parts = get_field('vs_calendar_plant_undercover_month_parts', $term_id);
+		$harvest_month_parts = get_field('vs_calendar_harvest_month_parts', $term_id);
+		$bloom_month_parts = get_field('vs_calendar_bloom_month_parts', $term_id);
 
 		// Get the number of products assigned to this category
 		$product_count = count(get_posts(array(
@@ -181,7 +219,7 @@ function render_sowing_calendar_category_report_page() {
 			'fields' => 'ids',
 		)));
 
-		$growing_guide_id = get_field('growing_guide', 'product_cat_' . $category->term_id);
+		$growing_guide_id = get_field('growing_guide', $term_id);
 		$growing_guide_link = "";
 		$growing_guide_title = "-";
 		if ($growing_guide_id) {
@@ -199,16 +237,32 @@ function render_sowing_calendar_category_report_page() {
 		echo '</td>';
 		echo '<td>';
 
-		if ($sow_month_parts || $plant_month_parts || $harvest_month_parts) {
+		$has_any = $sow_month_parts || $sow_indoors_month_parts || $sow_outdoors_month_parts ||
+				   $plant_month_parts || $plant_outdoors_month_parts || $plant_undercover_month_parts ||
+				   $harvest_month_parts || $bloom_month_parts;
+
+		if ($has_any) {
 			$parts = [];
 			if ($sow_month_parts) {
 				$parts[] = 'sow';
 			}
-			if ($plant_month_parts) {
-				$parts[] = 'plant';
+			if ($sow_indoors_month_parts) {
+				$parts[] = 'sow-in';
+			}
+			if ($sow_outdoors_month_parts) {
+				$parts[] = 'sow-out';
+			}
+			if ($plant_outdoors_month_parts) {
+				$parts[] = 'plant-out';
+			}
+			if ($plant_undercover_month_parts) {
+				$parts[] = 'plant-uc';
 			}
 			if ($harvest_month_parts) {
 				$parts[] = 'harvest';
+			}
+			if ($bloom_month_parts) {
+				$parts[] = 'bloom';
 			}
 			echo implode(' | ', $parts);
 		} else {
