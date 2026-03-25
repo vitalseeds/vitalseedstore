@@ -120,7 +120,7 @@ if (function_exists('category_growing_guide')) {
 			// remove_action('woocommerce_archive_description', 'woocommerce_taxonomy_archive_description', 10);
 			category_growing_guide(null, false);
 		}
-	}, 3);
+	}, 11);
 	// Remove the default WooCommerce taxonomy archive description
 }
 
