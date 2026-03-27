@@ -20,46 +20,70 @@ require_once('acf/fields/acf-growing-guide.php');
 require_once('acf/fields/acf-migration-backups.php');
 require_once('utils.php');
 
-function category_growing_guide($term_id = null, $show_images=true)
-{
+/**
+ * Returns the growing guide for a product.
+ *
+ * Checks (in order):
+ *   1. Product-level ACF 'growing_guide' field
+ *   2. Yoast primary category, if it is a seed category
+ *   3. Deepest seed category (most ancestors) among the product's categories
+ *
+ * @param int $product_id
+ * @return WP_Post|false
+ */
+function resolve_product_growing_guide($product_id) {
+	$guide = get_field('growing_guide', $product_id);
+	if ($guide) return $guide;
+
+	$terms = get_the_terms($product_id, 'product_cat');
+	if (!$terms || is_wp_error($terms)) return false;
+
+	$seeds = get_term_by('slug', 'seeds', 'product_cat');
 	$category = null;
-	$details = false;
-	if (is_product_category()) {
-		$category = get_queried_object();
-		$details = true;
-	} elseif (is_product()) {
-		$terms = get_the_terms(get_the_ID(), 'product_cat');
-		// Only use a 'seed' category, eg not 'large packet'
-		$parent_category = get_term_by('slug', 'seeds', 'product_cat');
+
+	$primary_id = (int) get_post_meta($product_id, '_yoast_wpseo_primary_product_cat', true);
+	if ($primary_id) {
 		foreach ($terms as $term) {
-			if (term_is_ancestor_of($parent_category, $term, 'product_cat')) {
+			if ($term->term_id === $primary_id && term_is_ancestor_of($seeds, $term, 'product_cat')) {
 				$category = $term;
 				break;
 			}
 		}
-		$show_images = false;
 	}
-	if ($category) {
-		// get acf field from category
-		$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
-		if ($growing_guide) {
-			if ($details) {
-				echo "<details class='growingguide'><summary>" . $growing_guide->post_title . "</summary><div>  ";
-				echo "<h2>" . $growing_guide->post_title . "</h2>";
-			}
-			$args = array(
-				'growing_guide_id' => $growing_guide->ID,
-				'show_images' => $show_images,
-				'show_pdf_link' => true,
 
-			);
-			get_template_part('parts/growingguide', 'sections', $args);
-			if ($details) {
-				echo "</div></details>";
+	if (!$category) {
+		$best_depth = -1;
+		foreach ($terms as $term) {
+			if (term_is_ancestor_of($seeds, $term, 'product_cat')) {
+				$depth = count(get_ancestors($term->term_id, 'product_cat'));
+				if ($depth > $best_depth) {
+					$best_depth = $depth;
+					$category = $term;
+				}
 			}
 		}
-		return $growing_guide;
 	}
+
+	return $category ? get_field('growing_guide', 'product_cat_' . $category->term_id) : false;
+}
+
+function category_growing_guide($term_id = null, $show_images=true)
+{
+	if (!is_product_category()) return;
+
+	$category = get_queried_object();
+	$growing_guide = get_field('growing_guide', 'product_cat_' . $category->term_id);
+	if ($growing_guide) {
+		echo "<details class='growingguide'><summary>" . $growing_guide->post_title . "</summary><div>  ";
+		echo "<h2>" . $growing_guide->post_title . "</h2>";
+		get_template_part('parts/growingguide', 'sections', array(
+			'growing_guide_id' => $growing_guide->ID,
+			'show_images' => $show_images,
+			'show_pdf_link' => true,
+		));
+		echo "</div></details>";
+	}
+	return $growing_guide;
 }
 
 function product_growing_guide($product_id=null, $show_images=false)
@@ -67,18 +91,17 @@ function product_growing_guide($product_id=null, $show_images=false)
 	if (!$product_id && is_product()) {
 		$product_id = get_the_ID();
 	}
-	if ($product_id && get_field('growing_guide', $product_id)) {
-		$growing_guide = get_field('growing_guide', $product_id);
-		$args = array(
-			'growing_guide_id' => $growing_guide->ID,
-			'show_images' => $show_images,
-			'show_pdf_link' => false,
+	if (!$product_id) return false;
 
-		);
-		get_template_part('parts/growingguide', 'sections', $args);
-		return $growing_guide;
-	}
-	return false;
+	$growing_guide = resolve_product_growing_guide($product_id);
+	if (!$growing_guide) return false;
+
+	get_template_part('parts/growingguide', 'sections', array(
+		'growing_guide_id' => $growing_guide->ID,
+		'show_images' => $show_images,
+		'show_pdf_link' => true,
+	));
+	return $growing_guide;
 }
 
 // Display vital content like Growing Guides and calendars
@@ -111,8 +134,7 @@ if (function_exists('vs_sowing_calendar')) {
 if (function_exists('category_growing_guide')) {
 	// add_action('woocommerce_before_single_product_summary', function () {
 	add_action('woocommerce_after_single_product_summary', function () {
-		// Either display product growing guide or category growing guide
-		product_growing_guide() ?  : category_growing_guide();
+		product_growing_guide();
 	}, 3);
 
 	add_action('woocommerce_archive_description', function () {
@@ -139,34 +161,24 @@ if (function_exists('category_growing_guide')) {
  * @param bool $verbose Whether to display detailed information or just the link. Default is true.
  */
 function display_growing_guide_link($post, $verbose = true) {
-	if (get_field('growing_guide', $post->ID)) {
-		$growing_guide = get_field('growing_guide', $post->ID);
-		if ($verbose) {echo '<p>';}
-		echo '<a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . $growing_guide->post_title . '</a>';
+	$growing_guide = resolve_product_growing_guide($post->ID);
+	if (!$growing_guide) {
 		if ($verbose) {
-			echo '</p><p><em>A growing guide is specified for the <strong>product</strong>, so it overrides the category growing guide.</em></p>';
+			echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';
+			echo '<p><em>No growing guide is specified for either category or product, so no guide will be shown.</em></p>';
+		} else {
+			echo '-';
 		}
 		return;
 	}
-	$terms = get_the_terms($post->ID, 'product_cat');
-	if ($terms && !is_wp_error($terms)) {
-		foreach ($terms as $term) {
-			$growing_guide = get_field('growing_guide', 'product_cat_' . $term->term_id);
-			if ($growing_guide) {
-				if ($verbose) {echo '<p>';}
-				echo '<a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . $growing_guide->post_title . '</a>';
-				if ($verbose) {
-					echo '</p><p><em>Growing guide is specified for <strong>category</strong> and not overridden by product.</em></p>';
-				}
-				return;
-			}
-		}
-	}
-	if ($verbose) {echo '<p>' . __('No related Growing Guide found.', 'vital-sowing-calendar') . '</p>';}
-	else {echo '-';}
 
+	if ($verbose) echo '<p>';
+	echo '<a href="' . get_edit_post_link($growing_guide->ID) . '" target="_blank">' . $growing_guide->post_title . '</a>';
 	if ($verbose) {
-		echo '<p><em>No growing guide is specified for either category or product, so no guide will be shown.</em></p>';
+		$from_product = (bool) get_field('growing_guide', $post->ID);
+		echo $from_product
+			? '</p><p><em>A growing guide is specified for the <strong>product</strong>, so it overrides the category growing guide.</em></p>'
+			: '</p><p><em>Growing guide is specified for <strong>category</strong> and not overridden by product.</em></p>';
 	}
 }
 
