@@ -103,3 +103,136 @@ function vitalseedstore_dashicons_subset()
 }
 // Priority 0 so the handle is replaced before Mega Menu enqueues it.
 add_action('wp_enqueue_scripts', 'vitalseedstore_dashicons_subset', 0);
+
+
+/**
+ * Whether to skip Elementor's icon stylesheets on pages that don't use icons.
+ *
+ * Off by default — this is a surge switch, not an always-on optimisation. Turn
+ * it on when load demands it, in wp-config.php:
+ *
+ *   define('VITALSEEDSTORE_LEAN_ICONS', true);
+ *
+ * Or from a snippet or plugin:
+ *
+ *   add_filter('vitalseedstore_lean_icons_enabled', '__return_true');
+ *
+ * The constant wins outright when defined, so it can force the feature both on
+ * and off regardless of what any filter says.
+ *
+ * @return bool
+ */
+function vitalseedstore_lean_icons_enabled()
+{
+	if (defined('VITALSEEDSTORE_LEAN_ICONS')) {
+		return (bool) VITALSEEDSTORE_LEAN_ICONS;
+	}
+
+	return (bool) apply_filters('vitalseedstore_lean_icons_enabled', false);
+}
+
+/**
+ * Whether the current page is known not to render any Elementor icons.
+ *
+ * Elementor renders on WooCommerce pages, but only a global form/popup template
+ * (container, form, heading, text-editor) — none of which draw an icon. The
+ * icon-bearing widgets (icon-list, testimonial-carousel) are confined to the
+ * homepage and other Elementor-built pages. Sampled across three products,
+ * three category archives, shop, cart and about: no eicon-* or fa-* classes.
+ *
+ * Filter this to carve out an exception without editing the theme, e.g. if a
+ * popup on product pages later gains an icon:
+ *
+ *   add_filter('vitalseedstore_iconless_page', function ($iconless) {
+ *       return is_product() ? false : $iconless;
+ *   });
+ *
+ * @return bool
+ */
+function vitalseedstore_is_iconless_page()
+{
+	if (!function_exists('is_woocommerce')) {
+		return false;
+	}
+
+	$iconless = is_product()
+		|| is_product_category()
+		|| is_shop()
+		|| is_cart()
+		|| is_checkout()
+		|| is_account_page();
+
+	return (bool) apply_filters('vitalseedstore_iconless_page', $iconless);
+}
+
+/**
+ * Whether the current page is known not to render the grid/list view toggle.
+ *
+ * woocommerce-grid-list-view registers its own copy of FontAwesome 4 under the
+ * generic 'font-awesome' handle (berocket/framework.php) and enqueues it on
+ * every frontend page. The toggle it draws — fa-bars and fa-th — only appears on
+ * product category archives.
+ *
+ * Product archives are deliberately left alone, including the shop page. The
+ * shop page currently shows no toggle (it is an Elementor-built page listing
+ * category tiles rather than a product loop) but its layout is editable, so
+ * excluding it here would be a trap for whoever changes it next.
+ *
+ * @return bool
+ */
+function vitalseedstore_is_gridlist_iconless_page()
+{
+	if (!function_exists('is_woocommerce')) {
+		return false;
+	}
+
+	$iconless = is_product()
+		|| is_cart()
+		|| is_checkout()
+		|| is_account_page();
+
+	return (bool) apply_filters('vitalseedstore_gridlist_iconless_page', $iconless);
+}
+
+/**
+ * Drop Elementor's icon stylesheets on WooCommerce pages.
+ *
+ * Elementor enqueues these on every page regardless of whether any icon is
+ * drawn. On product, category, cart and account pages that is ~29KB of
+ * render-blocking CSS/JS across four requests, none of it used:
+ *
+ *   elementor-icons       elementor-icons.min.css   5.2KB
+ *   font-awesome-5-all    all.min.css              14.1KB
+ *   font-awesome-4-shim   v4-shims.min.css + .js   10.1KB
+ *
+ * The v4 shims are dequeued here too, so this stays independent of Elementor's
+ * own "Load Font Awesome 4 Support" setting — that can be turned off separately
+ * once the FA4 to FA5 migration is confirmed complete.
+ *
+ * The webfonts themselves are not dequeued because they are never enqueued:
+ * a browser only fetches an icon font when a glyph in that family is rendered,
+ * so removing the stylesheets removes the fonts as a consequence.
+ */
+function vitalseedstore_lean_icons()
+{
+	if (!vitalseedstore_lean_icons_enabled()) {
+		return;
+	}
+
+	if (vitalseedstore_is_iconless_page()) {
+		foreach (array('elementor-icons', 'font-awesome-5-all', 'font-awesome-4-shim') as $handle) {
+			wp_dequeue_style($handle);
+		}
+
+		wp_dequeue_script('font-awesome-4-shim');
+	}
+
+	// woocommerce-grid-list-view's own FontAwesome copy, on a narrower rule —
+	// its toggle still needs the font on category archives.
+	if (vitalseedstore_is_gridlist_iconless_page()) {
+		wp_dequeue_style('font-awesome');
+	}
+}
+// Priority 100: Elementor enqueues its frontend styles at 20, and triggers the
+// FontAwesome enqueue from inside that, so this has to run afterwards.
+add_action('wp_enqueue_scripts', 'vitalseedstore_lean_icons', 100);
