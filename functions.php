@@ -92,6 +92,7 @@ function dequeue_all_elementor_styles() {
 
 // add_action('wp_enqueue_scripts', 'dequeue_all_elementor_styles', 100);
 
+include_once('includes/performance.php');
 include_once('includes/woocommerce.php');
 include_once('includes/breadcrumbs.php');
 include_once('includes/invoices.php');
