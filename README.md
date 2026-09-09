@@ -76,3 +76,90 @@ If the new glyph is applied via a `dashicons-*` class in markup (rather than a
 `content:` rule in Mega Menu's own stylesheet), add a matching `:before` content
 rule to the inline CSS too — those rules came from the core stylesheet being
 replaced.
+
+### Lean icons (surge switch)
+
+**Off by default.** A load-shedding switch, not an always-on optimisation.
+
+Elementor enqueues its icon stylesheets on every page whether or not any icon is
+drawn. On WooCommerce pages that is ~29KB of render-blocking CSS/JS across four
+requests, none of it used:
+
+| Handle | File | Size |
+|---|---|---|
+| `elementor-icons` | `elementor-icons.min.css` | 5.2KB |
+| `font-awesome-5-all` | `all.min.css` | 14.1KB |
+| `font-awesome-4-shim` | `v4-shims.min.css` + `.js` | 10.1KB |
+
+Elementor does render on those pages, but only a global form/popup template
+(`container`, `form`, `heading`, `text-editor`) — none of which draw an icon.
+The icon-bearing widgets (`icon-list`, `testimonial-carousel`) are confined to
+the homepage. Sampled across three products, three category archives, shop, cart
+and about: no `eicon-*` or `fa-*` classes.
+
+Enabling it skips those stylesheets on product, category, shop, cart, checkout
+and account pages. The webfonts (`eicons.woff2` ~101KB, `fa-solid-900.woff2`
+~77KB) go with them — a browser only fetches an icon font when a glyph in that
+family is actually rendered, so removing the stylesheets removes the fonts as a
+consequence.
+
+The switch also drops `woocommerce-grid-list-view`'s own FontAwesome 4 copy
+(7.8KB, registered under the generic `font-awesome` handle), but on a narrower
+rule — that plugin's grid/list toggle draws `fa-bars` and `fa-th` on category
+archives and genuinely needs it there:
+
+| Page | Elementor icon CSS | grid/list FontAwesome |
+|---|---|---|
+| product | dropped | dropped |
+| cart / checkout / account | dropped | dropped |
+| category archive | dropped | **kept** |
+| shop | dropped | **kept** |
+| everything else | kept | kept |
+
+Shop keeps the grid/list stylesheet even though it currently shows no toggle —
+it is an Elementor-built page listing category tiles rather than a product loop,
+but that layout is editable, so excluding it would be a trap for whoever changes
+it next. Override with the `vitalseedstore_gridlist_iconless_page` filter if you
+want it dropped there too.
+
+#### Turning it on
+
+In `wp-config.php`:
+
+```php
+define('VITALSEEDSTORE_LEAN_ICONS', true);
+```
+
+Or from a snippet or plugin:
+
+```php
+add_filter('vitalseedstore_lean_icons_enabled', '__return_true');
+```
+
+The constant wins outright when defined, so it can force the feature both on and
+off regardless of any filter.
+
+#### Carving out exceptions
+
+If a popup or global template on a WooCommerce page later gains an icon, exclude
+that page rather than turning the whole thing off:
+
+```php
+add_filter('vitalseedstore_iconless_page', function ($iconless) {
+    return is_product() ? false : $iconless;
+});
+```
+
+#### Related, but separate
+
+The v4 shims are dequeued here so the switch stands alone, but they are dead
+weight on *every* page, not just WooCommerce ones. Elementor has its own setting
+for them — **Elementor → Settings → Advanced → Load Font Awesome 4 Support →
+No** — which is the better fix, worth ~300ms sitewide.
+
+Two cautions before flipping it. Elementor enqueues FontAwesome's `all.min.css`
+only from inside `enqueue_shim()`, so turning the shim off removes FontAwesome
+entirely unless the active *"Remove fontawesome"* snippet (which deregisters
+`elementor-icons-fa-solid`/`-regular`/`-brands`) is retired at the same time. And
+run **Elementor → Tools → Font Awesome Upgrade** first, so no FA4 icon names are
+left relying on the shim.
