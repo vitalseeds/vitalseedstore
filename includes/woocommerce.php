@@ -13,7 +13,7 @@ add_filter('loop_shop_columns', 'loop_columns');
 if (!function_exists('loop_columns')) {
 	function loop_columns()
 	{
-		return 3; // 3 products per row
+		return 4; // 4 products per row
 	}
 }
 add_filter('woocommerce_sale_flash', 'wc_custom_replace_sale_text');
